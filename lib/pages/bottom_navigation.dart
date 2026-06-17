@@ -1,15 +1,16 @@
 import 'package:flutter/material.dart';
 import 'home_page.dart';
 import 'pantau_page.dart';
+import 'peringatan_page.dart';
 
-class DashboardPage extends StatefulWidget {
-  const DashboardPage({super.key});
+class BottomNavigation extends StatefulWidget {
+  const BottomNavigation({super.key});
 
   @override
-  State<DashboardPage> createState() => _DashboardPageState();
+  State<BottomNavigation> createState() => _BottomNavigationState();
 }
 
-class _DashboardPageState extends State<DashboardPage> {
+class _BottomNavigationState extends State<BottomNavigation> {
   int _currentIndex = 0;
 
   @override
@@ -18,7 +19,7 @@ class _DashboardPageState extends State<DashboardPage> {
     final List<Widget> pages = [
       const HomePage(),
       PantauPage(onBack: () => setState(() => _currentIndex = 0)),
-      const Center(child: Text('Halaman Peringatan')),
+      const PeringatanPage(),
       const Center(child: Text('Halaman Profil')),
       const Center(child: Text('Halaman Pengaturan')),
     ];
