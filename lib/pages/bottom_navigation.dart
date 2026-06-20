@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'home_page.dart';
 import 'pantau_page.dart';
 import 'peringatan_page.dart';
+import 'package:smart_sandal/pages/pengaturan_page.dart';
 
 class BottomNavigation extends StatefulWidget {
   const BottomNavigation({super.key});
@@ -21,7 +22,7 @@ class _BottomNavigationState extends State<BottomNavigation> {
       PantauPage(onBack: () => setState(() => _currentIndex = 0)),
       const PeringatanPage(),
       const Center(child: Text('Halaman Profil')),
-      const Center(child: Text('Halaman Pengaturan')),
+      const PengaturanPage(),
     ];
 
     return Scaffold(
