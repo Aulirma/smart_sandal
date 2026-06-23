@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 
 class PengaturanPage extends StatefulWidget {
-  const PengaturanPage({super.key});
+  final VoidCallback onBackPressed;
+  const PengaturanPage({super.key, required this.onBackPressed});
 
   @override
   State<PengaturanPage> createState() => _PengaturanPageState();
@@ -68,7 +69,7 @@ class _PengaturanPageState extends State<PengaturanPage> {
       children: [
         InkWell(
           borderRadius: BorderRadius.circular(40),
-          onTap: () => Navigator.pop(context),
+          onTap: widget.onBackPressed,
           child: Container(
             width: 54,
             height: 54,
@@ -310,7 +311,7 @@ class _PengaturanPageState extends State<PengaturanPage> {
     return Switch(
       value: value,
       onChanged: onChanged,
-      activeColor: Colors.white,
+      activeThumbColor: Colors.white,
       activeTrackColor: teal,
       inactiveThumbColor: Colors.white,
       inactiveTrackColor: const Color(0xFFD4DDE0),

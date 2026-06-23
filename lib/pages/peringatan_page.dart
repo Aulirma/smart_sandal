@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 
 class PeringatanPage extends StatelessWidget {
-  const PeringatanPage({super.key});
+  final VoidCallback onBackPressed;
+  const PeringatanPage({super.key, required this.onBackPressed});
 
   @override
   Widget build(BuildContext context) {
@@ -12,9 +13,7 @@ class PeringatanPage extends StatelessWidget {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.black87),
-          onPressed: () {
-            // Logic for back button
-          },
+          onPressed: onBackPressed,
         ),
         title: const Text(
           'Peringatan',

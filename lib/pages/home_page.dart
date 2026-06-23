@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 
 class HomePage extends StatelessWidget {
-  const HomePage({super.key});
+  final VoidCallback onNotificationPressed;
+  const HomePage({super.key, required this.onNotificationPressed});
 
   @override
   Widget build(BuildContext context) {
@@ -29,18 +30,6 @@ class HomePage extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
                 _buildActivityTimeline(),
-                const SizedBox(height: 24),
-                const Text(
-                  'Aksi Cepat',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF2D3142),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                _buildQuickActions(),
-                const SizedBox(height: 20),
               ],
             ),
           ),
@@ -87,32 +76,35 @@ class HomePage extends StatelessWidget {
                   ),
                 ],
               ),
-              Stack(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.2),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(Icons.notifications_none, color: Colors.white),
-                  ),
-                  Positioned(
-                    right: 0,
-                    top: 0,
-                    child: Container(
-                      padding: const EdgeInsets.all(4),
-                      decoration: const BoxDecoration(
-                        color: Colors.red,
+              GestureDetector(
+                onTap: onNotificationPressed,
+                child: Stack(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.2),
                         shape: BoxShape.circle,
                       ),
-                      child: const Text(
-                        '3',
-                        style: TextStyle(color: Colors.white, fontSize: 10),
+                      child: const Icon(Icons.notifications_none, color: Colors.white),
+                    ),
+                    Positioned(
+                      right: 0,
+                      top: 0,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: const BoxDecoration(
+                          color: Colors.red,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Text(
+                          '3',
+                          style: TextStyle(color: Colors.white, fontSize: 10),
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ],
           ),
@@ -561,68 +553,6 @@ class HomePage extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildQuickActions() {
-    return Row(
-      children: [
-        _buildQuickActionCard(
-          icon: Icons.trending_up,
-          title: 'Pemantauan\nLangsung',
-          subtitle: 'Data waktu nyata',
-        ),
-        const SizedBox(width: 16),
-        _buildQuickActionCard(
-          icon: Icons.show_chart,
-          title: 'Analitik',
-          subtitle: 'Lihat tren',
-        ),
-      ],
-    );
-  }
-
-  Widget _buildQuickActionCard({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-  }) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(24),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.03),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(icon, color: const Color(0xFF0D9488), size: 32),
-            const SizedBox(height: 16),
-            Text(
-              title,
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 15,
-                color: Color(0xFF1E293B),
-                height: 1.2,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              subtitle,
-              style: TextStyle(color: Colors.grey[500], fontSize: 12),
-            ),
-          ],
-        ),
       ),
     );
   }

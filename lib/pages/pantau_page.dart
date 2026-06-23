@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
 class PantauPage extends StatelessWidget {
-  final VoidCallback? onBack;
+  final VoidCallback? onBackPressed;
 
-  const PantauPage({super.key, this.onBack});
+  const PantauPage({super.key, this.onBackPressed});
 
   @override
   Widget build(BuildContext context) {
@@ -21,14 +21,14 @@ class PantauPage extends StatelessWidget {
                 Expanded(
                   child: Row(
                     children: [
-                      if (onBack != null)
+                      if (onBackPressed != null)
                         IconButton(
                           icon: const Icon(Icons.arrow_back),
-                          onPressed: onBack,
+                          onPressed: onBackPressed,
                           padding: EdgeInsets.zero,
                           constraints: const BoxConstraints(),
                         ),
-                      if (onBack != null) const SizedBox(width: 16),
+                      if (onBackPressed != null) const SizedBox(width: 16),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
