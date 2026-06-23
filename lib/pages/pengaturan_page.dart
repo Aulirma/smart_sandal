@@ -12,9 +12,6 @@ class _PengaturanPageState extends State<PengaturanPage> {
   bool pushNotif = true;
   bool smsDarurat = true;
   bool laporanHarian = true;
-  bool pushNotif2 = true;
-  bool smsDarurat2 = true;
-  bool laporanHarian2 = true;
   bool modeGelap = true;
 
   static const Color teal = Color(0xFF2FB4A6);
@@ -28,14 +25,14 @@ class _PengaturanPageState extends State<PengaturanPage> {
       backgroundColor: bgColor,
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(22, 22, 22, 28),
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _buildHeader(context),
-              const SizedBox(height: 28),
-              _buildProfileCard(),
               const SizedBox(height: 20),
+              _buildProfileCard(),
+              const SizedBox(height: 18),
               _buildNotificationCard(
                 pushValue: pushNotif,
                 smsValue: smsDarurat,
@@ -45,17 +42,8 @@ class _PengaturanPageState extends State<PengaturanPage> {
                 onReportChanged: (value) => setState(() => laporanHarian = value),
               ),
               const SizedBox(height: 20),
-              _buildNotificationCard(
-                pushValue: pushNotif2,
-                smsValue: smsDarurat2,
-                reportValue: laporanHarian2,
-                onPushChanged: (value) => setState(() => pushNotif2 = value),
-                onSmsChanged: (value) => setState(() => smsDarurat2 = value),
-                onReportChanged: (value) => setState(() => laporanHarian2 = value),
-              ),
-              const SizedBox(height: 20),
               _buildGeneralCard(),
-              const SizedBox(height: 22),
+              const SizedBox(height: 18),
               _buildLogoutButton(),
             ],
           ),
@@ -89,7 +77,7 @@ class _PengaturanPageState extends State<PengaturanPage> {
           'Pengaturan',
           style: TextStyle(
             color: darkText,
-            fontSize: 28,
+            fontSize: 22,
             fontWeight: FontWeight.w800,
           ),
         ),
@@ -104,16 +92,16 @@ class _PengaturanPageState extends State<PengaturanPage> {
           Row(
             children: [
               Container(
-                width: 72,
-                height: 72,
+                width: 60,
+                height: 60,
                 decoration: BoxDecoration(
                   color: teal,
-                  borderRadius: BorderRadius.circular(24),
+                  borderRadius: BorderRadius.circular(30),
                 ),
                 child: const Icon(
                   Icons.person_outline,
                   color: Colors.white,
-                  size: 42,
+                  size: 30,
                 ),
               ),
               const SizedBox(width: 18),
@@ -125,7 +113,7 @@ class _PengaturanPageState extends State<PengaturanPage> {
                       'Sarah Ahmad',
                       style: TextStyle(
                         color: darkText,
-                        fontSize: 20,
+                        fontSize: 18,
                         fontWeight: FontWeight.w800,
                       ),
                     ),
@@ -134,14 +122,14 @@ class _PengaturanPageState extends State<PengaturanPage> {
                       'sarah@email.com',
                       style: TextStyle(
                         color: grayText,
-                        fontSize: 17,
+                        fontSize: 15,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
                   ],
                 ),
               ),
-              const Icon(Icons.chevron_right, color: grayText, size: 32),
+              const Icon(Icons.chevron_right, color: grayText, size: 20),
             ],
           ),
           const SizedBox(height: 22),
@@ -150,12 +138,12 @@ class _PengaturanPageState extends State<PengaturanPage> {
           _menuTile(
             icon: Icons.person_outline,
             title: 'Ubah Profil',
-            trailing: const Icon(Icons.chevron_right, color: grayText, size: 30),
+            trailing: const Icon(Icons.chevron_right, color: grayText, size: 20),
           ),
           _menuTile(
             icon: Icons.shield_outlined,
             title: 'Ubah Kata Sandi',
-            trailing: const Icon(Icons.chevron_right, color: grayText, size: 30),
+            trailing: const Icon(Icons.chevron_right, color: grayText, size: 20),
           ),
         ],
       ),
@@ -222,7 +210,7 @@ class _PengaturanPageState extends State<PengaturanPage> {
           _menuTile(
             icon: Icons.phone_outlined,
             title: 'Kontak Darurat',
-            trailing: const Icon(Icons.chevron_right, color: grayText, size: 30),
+            trailing: const Icon(Icons.chevron_right, color: grayText, size: 20),
           ),
           _menuTile(
             icon: Icons.dark_mode_outlined,
@@ -234,7 +222,7 @@ class _PengaturanPageState extends State<PengaturanPage> {
           _menuTile(
             icon: Icons.help_outline,
             title: 'Bantuan & Dukungan',
-            trailing: const Icon(Icons.chevron_right, color: grayText, size: 30),
+            trailing: const Icon(Icons.chevron_right, color: grayText, size: 18),
           ),
         ],
       ),
@@ -286,10 +274,10 @@ class _PengaturanPageState extends State<PengaturanPage> {
     required Widget trailing,
   }) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 11),
+      padding: const EdgeInsets.symmetric(vertical: 10),
       child: Row(
         children: [
-          Icon(icon, color: teal, size: 30),
+          Icon(icon, color: teal, size: 25),
           const SizedBox(width: 18),
           Expanded(
             child: Text(
@@ -308,13 +296,21 @@ class _PengaturanPageState extends State<PengaturanPage> {
   }
 
   Widget _switch(bool value, ValueChanged<bool> onChanged) {
-    return Switch(
-      value: value,
-      onChanged: onChanged,
-      activeThumbColor: Colors.white,
-      activeTrackColor: teal,
-      inactiveThumbColor: Colors.white,
-      inactiveTrackColor: const Color(0xFFD4DDE0),
+    return SizedBox(
+      width: 48,
+      height: 28,
+      child: Transform.scale(
+        scale: 0.7,
+        child: Switch(
+          value: value,
+          onChanged: onChanged,
+          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          activeThumbColor: Colors.white,
+          activeTrackColor: teal,
+          inactiveThumbColor: Colors.white,
+          inactiveTrackColor: const Color(0xFFD4DDE0),
+        ),
+      ),
     );
   }
 }
