@@ -92,8 +92,8 @@ class _DaftarPageState extends State<DaftarPage> {
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.pop(context); // Close dialog
-                Navigator.pop(context); // Back to login page
+                Navigator.pop(context);
+                Navigator.pop(context);
               },
               child: const Text(
                 'OK',

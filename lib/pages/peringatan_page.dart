@@ -1,8 +1,105 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
-class PeringatanPage extends StatelessWidget {
+class _NotificationItem {
+  final IconData icon;
+  final Color iconBgColor;
+  final Color iconColor;
+  final String title;
+  final String subtitle;
+  final String timeLocation;
+  bool isRead;
+  final bool hasCheck;
+
+  _NotificationItem({
+    required this.icon,
+    required this.iconBgColor,
+    required this.iconColor,
+    required this.title,
+    required this.subtitle,
+    required this.timeLocation,
+    this.isRead = false,
+    this.hasCheck = false,
+  });
+}
+
+class PeringatanPage extends StatefulWidget {
   final VoidCallback onBackPressed;
   const PeringatanPage({super.key, required this.onBackPressed});
+
+  @override
+  State<PeringatanPage> createState() => _PeringatanPageState();
+}
+
+class _PeringatanPageState extends State<PeringatanPage> {
+  final List<_NotificationItem> _notifications = [
+    _NotificationItem(
+      icon: Icons.shield_outlined,
+      iconBgColor: const Color(0xFFFFEBEE),
+      iconColor: const Color(0xFFB71C1C),
+      title: 'Peringatan Risiko Jatuh',
+      subtitle: 'Risiko jatuh tinggi terdeteksi – pola langkah abnormal',
+      timeLocation: '2 menit lalu  •  Taman Sri Muda, Shah Alam',
+    ),
+    _NotificationItem(
+      icon: Icons.warning_amber_rounded,
+      iconBgColor: const Color(0xFFFFF3E0),
+      iconColor: const Color(0xFFEF6C00),
+      title: 'Langkah Tidak Stabil',
+      subtitle: 'Periode langkah tidak stabil terdeteksi sesaat',
+      timeLocation: '15 menit lalu  •  Dekat area pasar',
+    ),
+    _NotificationItem(
+      icon: Icons.warning_amber_rounded,
+      iconBgColor: const Color(0xFFFFF3E0),
+      iconColor: const Color(0xFFEF6C00),
+      title: 'Baterai Rendah',
+      subtitle: 'Baterai sandal pintar tersisa 15%',
+      timeLocation: '1 jam lalu',
+    ),
+    _NotificationItem(
+      icon: Icons.notifications_none,
+      iconBgColor: const Color(0xFFE8F5E9),
+      iconColor: const Color(0xFF2E7D32),
+      title: 'Perangkat Tersinkronisasi',
+      subtitle: 'Data berhasil disinkronkan ke cloud',
+      timeLocation: '3 jam lalu',
+      isRead: true,
+      hasCheck: true,
+    ),
+    _NotificationItem(
+      icon: Icons.check,
+      iconBgColor: const Color(0xFFE8F5E9),
+      iconColor: const Color(0xFF2E7D32),
+      title: 'Laporan Harian Siap',
+      subtitle: 'Laporan aktivitas kemarin telah siap diulas',
+      timeLocation: 'Tadi pagi',
+      isRead: true,
+      hasCheck: true,
+    ),
+  ];
+
+  Future<void> _makeEmergencyCall() async {
+    const String phoneNumber = '08123456789';
+    final Uri launchUri = Uri.parse('tel:$phoneNumber');
+    if (await canLaunchUrl(launchUri)) {
+      await launchUrl(launchUri);
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Tidak dapat membuka aplikasi telepon.')),
+        );
+      }
+    }
+  }
+
+  void _markAllAsRead() {
+    setState(() {
+      for (var item in _notifications) {
+        item.isRead = true;
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -13,7 +110,7 @@ class PeringatanPage extends StatelessWidget {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.black87),
-          onPressed: onBackPressed,
+          onPressed: widget.onBackPressed,
         ),
         title: const Text(
           'Peringatan',
@@ -24,7 +121,7 @@ class PeringatanPage extends StatelessWidget {
         ),
         actions: [
           TextButton(
-            onPressed: () {},
+            onPressed: _markAllAsRead,
             child: const Text(
               'Tandai semua dibaca',
               style: TextStyle(
@@ -42,11 +139,8 @@ class PeringatanPage extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 2. Kartu Protokol Darurat Aktif (Urgent Card - Merah)
               _buildUrgentCard(),
               const SizedBox(height: 24),
-              
-              // 3. Daftar Riwayat Peringatan (Notification List)
               const Text(
                 'Riwayat Peringatan',
                 style: TextStyle(
@@ -56,60 +150,10 @@ class PeringatanPage extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 12),
-              
-              _buildNotificationItem(
-                icon: Icons.shield_outlined,
-                iconBgColor: Colors.red[50]!,
-                iconColor: Colors.red[900]!,
-                title: 'Peringatan Risiko Jatuh',
-                subtitle: 'Risiko jatuh tinggi terdeteksi – pola langkah abnormal',
-                timeLocation: '2 menit lalu  •  Taman Sri Muda, Shah Alam',
-                hasDot: true,
-              ),
-              const SizedBox(height: 12),
-              
-              _buildNotificationItem(
-                icon: Icons.warning_amber_rounded,
-                iconBgColor: Colors.orange[50]!,
-                iconColor: Colors.orange[800]!,
-                title: 'Langkah Tidak Stabil',
-                subtitle: 'Periode langkah tidak stabil terdeteksi sesaat',
-                timeLocation: '15 menit lalu  •  Dekat area pasar',
-                hasDot: true,
-              ),
-              const SizedBox(height: 12),
-              
-              _buildNotificationItem(
-                icon: Icons.warning_amber_rounded,
-                iconBgColor: Colors.orange[50]!,
-                iconColor: Colors.orange[800]!,
-                title: 'Baterai Rendah',
-                subtitle: 'Baterai sandal pintar tersisa 15%',
-                timeLocation: '1 jam lalu',
-                hasDot: true,
-              ),
-              const SizedBox(height: 12),
-              
-              _buildNotificationItem(
-                icon: Icons.notifications_none,
-                iconBgColor: Colors.green[50]!,
-                iconColor: Colors.green[800]!,
-                title: 'Perangkat Tersinkronisasi',
-                subtitle: 'Data berhasil disinkronkan ke cloud',
-                timeLocation: '3 jam lalu',
-                hasCheck: true,
-              ),
-              const SizedBox(height: 12),
-              
-              _buildNotificationItem(
-                icon: Icons.check,
-                iconBgColor: Colors.green[50]!,
-                iconColor: Colors.green[800]!,
-                title: 'Laporan Harian Siap',
-                subtitle: 'Laporan aktivitas kemarin telah siap diulas',
-                timeLocation: 'Tadi pagi',
-                hasCheck: true,
-              ),
+              ..._notifications.map((item) => Padding(
+                    padding: const EdgeInsets.only(bottom: 12.0),
+                    child: _buildNotificationItem(item),
+                  )),
               const SizedBox(height: 20),
             ],
           ),
@@ -158,7 +202,6 @@ class PeringatanPage extends StatelessWidget {
             style: TextStyle(color: Colors.red),
           ),
           const SizedBox(height: 16),
-
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
@@ -176,8 +219,6 @@ class PeringatanPage extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 8),
-                
-                // Mock Map
                 Stack(
                   children: [
                     Container(
@@ -197,7 +238,7 @@ class PeringatanPage extends StatelessWidget {
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
-                          color: Colors.green[50],
+                          color: const Color(0xFFE8F5E9),
                           borderRadius: BorderRadius.circular(4),
                         ),
                         child: const Text(
@@ -213,7 +254,6 @@ class PeringatanPage extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 8),
-                
                 const Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -233,12 +273,11 @@ class PeringatanPage extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
-
           SizedBox(
             width: double.infinity,
             height: 48,
             child: ElevatedButton(
-              onPressed: () {},
+              onPressed: _makeEmergencyCall,
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.red[700],
                 shape: const StadiumBorder(),
@@ -258,22 +297,13 @@ class PeringatanPage extends StatelessWidget {
     );
   }
 
-  Widget _buildNotificationItem({
-    required IconData icon,
-    required Color iconBgColor,
-    required Color iconColor,
-    required String title,
-    required String subtitle,
-    required String timeLocation,
-    bool hasDot = false,
-    bool hasCheck = false,
-  }) {
+  Widget _buildNotificationItem(_NotificationItem item) {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey),
+        border: Border.all(color: Colors.grey[200]!),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -281,10 +311,10 @@ class PeringatanPage extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: iconBgColor,
+              color: item.iconBgColor,
               shape: BoxShape.circle,
             ),
-            child: Icon(icon, color: iconColor, size: 24),
+            child: Icon(item.icon, color: item.iconColor, size: 24),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -295,14 +325,14 @@ class PeringatanPage extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      title,
+                      item.title,
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 15,
                         color: Colors.black87,
                       ),
                     ),
-                    if (hasDot)
+                    if (!item.isRead)
                       Container(
                         width: 8,
                         height: 8,
@@ -311,13 +341,13 @@ class PeringatanPage extends StatelessWidget {
                           shape: BoxShape.circle,
                         ),
                       ),
-                    if (hasCheck)
+                    if (item.hasCheck)
                       const Icon(Icons.check_circle_outline, color: Colors.grey, size: 16),
                   ],
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  subtitle,
+                  item.subtitle,
                   style: TextStyle(
                     fontSize: 13,
                     color: Colors.grey[700],
@@ -325,7 +355,7 @@ class PeringatanPage extends StatelessWidget {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  timeLocation,
+                  item.timeLocation,
                   style: TextStyle(
                     fontSize: 11,
                     color: Colors.grey[500],
