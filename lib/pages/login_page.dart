@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'bottom_navigation.dart';
 import 'lupa_sandi_page.dart';
+import 'daftar_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -232,7 +233,10 @@ class _LoginPageState extends State<LoginPage> {
                         ),
                         GestureDetector(
                           onTap: () {
-                            // Action for registration
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (context) => const DaftarPage()),
+                            );
                           },
                           child: const Text(
                             'Daftar',
