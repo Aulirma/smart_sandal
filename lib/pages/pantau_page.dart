@@ -581,7 +581,6 @@ class TrackPainter extends CustomPainter {
       }
     }
 
-    // Add endpoint
     final endpointPaint = Paint()
       ..color = const Color(0xFF0D9488)
       ..style = PaintingStyle.fill;

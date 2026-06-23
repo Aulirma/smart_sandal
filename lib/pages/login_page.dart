@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'bottom_navigation.dart';
+import 'lupa_sandi_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -179,7 +180,10 @@ class _LoginPageState extends State<LoginPage> {
                       alignment: Alignment.centerLeft,
                       child: GestureDetector(
                         onTap: () {
-                          // Action for forgot password
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (context) => const LupaSandiPage()),
+                          );
                         },
                         child: const Text(
                           'Lupa kata sandi?',
