@@ -4,6 +4,7 @@ import 'edit_profile_page.dart';
 import 'legal_policy_page.dart';
 import 'izin_app_page.dart';
 import 'bantuan_page.dart';
+import 'login_page.dart';
 
 class PengaturanPage extends StatefulWidget {
   final VoidCallback onBackPressed;
@@ -281,12 +282,52 @@ class _PengaturanPageState extends State<PengaturanPage> {
     );
   }
 
+  void _showLogoutDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        title: const Text(
+          'Konfirmasi Keluar',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        content: const Text(
+          'Apakah Anda yakin ingin keluar dari akun EMERYS Anda?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text(
+              'Batal',
+              style: TextStyle(color: Colors.grey),
+            ),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(builder: (context) => const LoginPage()),
+                (route) => false,
+              );
+            },
+            child: const Text(
+              'Keluar',
+              style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildLogoutButton() {
     return SizedBox(
       width: double.infinity,
       height: 64,
       child: ElevatedButton.icon(
-        onPressed: () {},
+        onPressed: () => _showLogoutDialog(context),
         icon: const Icon(Icons.logout, color: Color(0xFFE14B4B), size: 28),
         label: const Text(
           'Keluar',
