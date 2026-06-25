@@ -17,7 +17,6 @@ class _BottomNavigationState extends State<BottomNavigation> {
 
   @override
   Widget build(BuildContext context) {
-    // List of pages for the navigation shell
     final List<Widget> pages = [
       HomePage(onNotificationPressed: () => setState(() => _currentIndex = 2)),
       PantauPage(onBackPressed: () => setState(() => _currentIndex = 0)),

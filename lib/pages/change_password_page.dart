@@ -42,8 +42,8 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.pop(context); // Close dialog
-                Navigator.pop(context); // Go back
+                Navigator.pop(context);
+                Navigator.pop(context);
               },
               child: const Text(
                 'OK', 

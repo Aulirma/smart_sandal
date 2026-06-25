@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'change_password_page.dart';
+import 'edit_profile_page.dart';
+import 'legal_policy_page.dart';
+import 'izin_app_page.dart';
 
 class PengaturanPage extends StatefulWidget {
   final VoidCallback onBackPressed;
@@ -90,57 +93,61 @@ class _PengaturanPageState extends State<PengaturanPage> {
     return _card(
       child: Column(
         children: [
-          Row(
-            children: [
-              Container(
-                width: 60,
-                height: 60,
-                decoration: BoxDecoration(
-                  color: teal,
-                  borderRadius: BorderRadius.circular(30),
+          InkWell(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const EditProfilePage()),
+              );
+            },
+            borderRadius: BorderRadius.circular(20),
+            child: Row(
+              children: [
+                Container(
+                  width: 60,
+                  height: 60,
+                  decoration: BoxDecoration(
+                    color: teal,
+                    borderRadius: BorderRadius.circular(30),
+                  ),
+                  child: const Icon(
+                    Icons.person_outline,
+                    color: Colors.white,
+                    size: 30,
+                  ),
                 ),
-                child: const Icon(
-                  Icons.person_outline,
-                  color: Colors.white,
-                  size: 30,
-                ),
-              ),
-              const SizedBox(width: 18),
-              const Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Sarah Ahmad',
-                      style: TextStyle(
-                        color: darkText,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
+                const SizedBox(width: 18),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Sarah Ahmad',
+                        style: TextStyle(
+                          color: darkText,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
-                    ),
-                    SizedBox(height: 4),
-                    Text(
-                      'sarah@email.com',
-                      style: TextStyle(
-                        color: grayText,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w500,
+                      SizedBox(height: 4),
+                      Text(
+                        'sarah@email.com',
+                        style: TextStyle(
+                          color: grayText,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-              const Icon(Icons.chevron_right, color: grayText, size: 20),
-            ],
+                const Icon(Icons.chevron_right, color: grayText, size: 20),
+              ],
+            ),
           ),
           const SizedBox(height: 22),
           const Divider(color: Color(0xFFE2E7E9), thickness: 1),
           const SizedBox(height: 10),
-          _menuTile(
-            icon: Icons.person_outline,
-            title: 'Ubah Profil',
-            trailing: const Icon(Icons.chevron_right, color: grayText, size: 20),
-          ),
           InkWell(
             onTap: () {
               Navigator.push(
@@ -151,6 +158,19 @@ class _PengaturanPageState extends State<PengaturanPage> {
             child: _menuTile(
               icon: Icons.shield_outlined,
               title: 'Ubah Kata Sandi',
+              trailing: const Icon(Icons.chevron_right, color: grayText, size: 20),
+            ),
+          ),
+          InkWell(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const IzinAppPage()),
+              );
+            },
+            child: _menuTile(
+              icon: Icons.security_rounded,
+              title: 'Izin Aplikasi',
               trailing: const Icon(Icons.chevron_right, color: grayText, size: 20),
             ),
           ),
@@ -232,6 +252,19 @@ class _PengaturanPageState extends State<PengaturanPage> {
             icon: Icons.help_outline,
             title: 'Bantuan & Dukungan',
             trailing: const Icon(Icons.chevron_right, color: grayText, size: 18),
+          ),
+          InkWell(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const LegalPolicyPage()),
+              );
+            },
+            child: _menuTile(
+              icon: Icons.description_rounded,
+              title: 'Legalitas & Privasi',
+              trailing: const Icon(Icons.chevron_right, color: grayText, size: 20),
+            ),
           ),
         ],
       ),

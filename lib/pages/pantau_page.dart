@@ -567,7 +567,6 @@ class TrackPainter extends CustomPainter {
     path.quadraticBezierTo(200, 60, 250, 70);
     path.lineTo(300, 50);
 
-    // Draw dashed path manually
     const double dashWidth = 8;
     const double dashSpace = 6;
     double distance = 0.0;

@@ -80,7 +80,6 @@ class _LupaSandiPageState extends State<LupaSandiPage> {
                 height: 55,
                 child: ElevatedButton(
                   onPressed: () {
-                    // Action to send link
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.blueAccent,
