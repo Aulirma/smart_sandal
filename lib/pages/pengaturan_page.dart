@@ -3,6 +3,7 @@ import 'change_password_page.dart';
 import 'edit_profile_page.dart';
 import 'legal_policy_page.dart';
 import 'izin_app_page.dart';
+import 'bantuan_page.dart';
 
 class PengaturanPage extends StatefulWidget {
   final VoidCallback onBackPressed;
@@ -248,10 +249,19 @@ class _PengaturanPageState extends State<PengaturanPage> {
               setState(() => modeGelap = value);
             }),
           ),
-          _menuTile(
-            icon: Icons.help_outline,
-            title: 'Bantuan & Dukungan',
-            trailing: const Icon(Icons.chevron_right, color: grayText, size: 18),
+          InkWell(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const BantuanPage()),
+              );
+            },
+            child: _menuTile(
+              icon: Icons.help_outline,
+              title: 'Bantuan & Dukungan',
+              trailing:
+                  const Icon(Icons.chevron_right, color: grayText, size: 18),
+            ),
           ),
           InkWell(
             onTap: () {
