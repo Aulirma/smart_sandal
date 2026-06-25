@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'change_password_page.dart';
 
 class PengaturanPage extends StatefulWidget {
   final VoidCallback onBackPressed;
@@ -140,10 +141,18 @@ class _PengaturanPageState extends State<PengaturanPage> {
             title: 'Ubah Profil',
             trailing: const Icon(Icons.chevron_right, color: grayText, size: 20),
           ),
-          _menuTile(
-            icon: Icons.shield_outlined,
-            title: 'Ubah Kata Sandi',
-            trailing: const Icon(Icons.chevron_right, color: grayText, size: 20),
+          InkWell(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const ChangePasswordPage()),
+              );
+            },
+            child: _menuTile(
+              icon: Icons.shield_outlined,
+              title: 'Ubah Kata Sandi',
+              trailing: const Icon(Icons.chevron_right, color: grayText, size: 20),
+            ),
           ),
         ],
       ),

@@ -301,7 +301,7 @@ class _PeringatanPageState extends State<PeringatanPage> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: item.isRead ? Colors.white : const Color(0xFFF0F9FF),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.grey[200]!),
       ),
@@ -337,7 +337,7 @@ class _PeringatanPageState extends State<PeringatanPage> {
                         width: 8,
                         height: 8,
                         decoration: const BoxDecoration(
-                          color: Colors.green,
+                          color: Colors.red,
                           shape: BoxShape.circle,
                         ),
                       ),
