@@ -13,6 +13,7 @@ class _DaftarPageState extends State<DaftarPage> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _dobController = TextEditingController();
+  final TextEditingController _addressController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _confirmPasswordController = TextEditingController();
 
@@ -26,6 +27,7 @@ class _DaftarPageState extends State<DaftarPage> {
     _emailController.dispose();
     _phoneController.dispose();
     _dobController.dispose();
+    _addressController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();
@@ -202,6 +204,10 @@ class _DaftarPageState extends State<DaftarPage> {
                     ),
                   const SizedBox(height: 20),
 
+                  _buildInputLabel("Alamat"),
+                  _buildTextField(_addressController, "Masukkan alamat lengkap Anda"),
+                  const SizedBox(height: 20),
+
                   _buildInputLabel("Kata Sandi"),
                   _buildTextField(
                     _passwordController, 
@@ -230,7 +236,22 @@ class _DaftarPageState extends State<DaftarPage> {
                     width: double.infinity,
                     height: 55,
                     child: ElevatedButton(
-                      onPressed: () => _showSuccessDialog(context),
+                      onPressed: () {
+                        if (_nameController.text.isEmpty ||
+                            _emailController.text.isEmpty ||
+                            _phoneController.text.isEmpty ||
+                            _dobController.text.isEmpty ||
+                            _addressController.text.isEmpty ||
+                            _passwordController.text.isEmpty ||
+                            _confirmPasswordController.text.isEmpty) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                                content: Text("Semua kolom wajib diisi!")),
+                          );
+                          return;
+                        }
+                        _showSuccessDialog(context);
+                      },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.blueAccent,
                         shape: const StadiumBorder(),

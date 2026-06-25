@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'device_management_page.dart';
 
 class ProfilPage extends StatelessWidget {
   final VoidCallback onBackPressed;
@@ -237,7 +238,13 @@ class ProfilPage extends StatelessWidget {
                   width: double.infinity,
                   height: 52,
                   child: ElevatedButton(
-                    onPressed: () {},
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (context) => const DeviceManagementPage()),
+                      );
+                    },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF0D8B94),
                       foregroundColor: Colors.white,
