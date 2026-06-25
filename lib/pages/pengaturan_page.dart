@@ -5,6 +5,7 @@ import 'legal_policy_page.dart';
 import 'izin_app_page.dart';
 import 'bantuan_page.dart';
 import 'login_page.dart';
+import 'laporan_harian_page.dart';
 
 class PengaturanPage extends StatefulWidget {
   final VoidCallback onBackPressed;
@@ -213,10 +214,19 @@ class _PengaturanPageState extends State<PengaturanPage> {
             title: 'Peringatan SMS Darurat',
             trailing: _switch(smsValue, onSmsChanged),
           ),
-          _menuTile(
-            icon: Icons.notifications_none,
-            title: 'Laporan Harian',
-            trailing: _switch(reportValue, onReportChanged),
+          InkWell(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (context) => const LaporanHarianPage()),
+              );
+            },
+            child: _menuTile(
+              icon: Icons.notifications_none,
+              title: 'Laporan Harian',
+              trailing: _switch(reportValue, onReportChanged),
+            ),
           ),
         ],
       ),

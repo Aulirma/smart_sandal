@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'laporan_harian_page.dart';
 
 class _NotificationItem {
   final IconData icon;
@@ -151,9 +152,9 @@ class _PeringatanPageState extends State<PeringatanPage> {
               ),
               const SizedBox(height: 12),
               ..._notifications.map((item) => Padding(
-                    padding: const EdgeInsets.only(bottom: 12.0),
-                    child: _buildNotificationItem(item),
-                  )),
+                padding: const EdgeInsets.only(bottom: 12.0),
+                child: _buildNotificationItem(item),
+              )),
               const SizedBox(height: 20),
             ],
           ),
@@ -298,73 +299,93 @@ class _PeringatanPageState extends State<PeringatanPage> {
   }
 
   Widget _buildNotificationItem(_NotificationItem item) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: item.isRead ? Colors.white : const Color(0xFFF0F9FF),
+    return Card(
+      margin: EdgeInsets.zero,
+      elevation: 0,
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey[200]!),
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: item.iconBgColor,
-              shape: BoxShape.circle,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: item.title == 'Laporan Harian Siap'
+            ? () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const LaporanHarianPage(),
             ),
-            child: Icon(item.icon, color: item.iconColor, size: 24),
+          );
+        }
+            : null,
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: item.isRead ? Colors.white : const Color(0xFFF0F9FF),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.grey[200]!),
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: item.iconBgColor,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(item.icon, color: item.iconColor, size: 24),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          item.title,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 15,
+                            color: Colors.black87,
+                          ),
+                        ),
+                        if (!item.isRead)
+                          Container(
+                            width: 8,
+                            height: 8,
+                            decoration: const BoxDecoration(
+                              color: Colors.red,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                        if (item.hasCheck)
+                          const Icon(Icons.check_circle_outline, color: Colors.grey, size: 16),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
                     Text(
-                      item.title,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 15,
-                        color: Colors.black87,
+                      item.subtitle,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.grey[700],
                       ),
                     ),
-                    if (!item.isRead)
-                      Container(
-                        width: 8,
-                        height: 8,
-                        decoration: const BoxDecoration(
-                          color: Colors.red,
-                          shape: BoxShape.circle,
-                        ),
+                    const SizedBox(height: 6),
+                    Text(
+                      item.timeLocation,
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.grey[500],
                       ),
-                    if (item.hasCheck)
-                      const Icon(Icons.check_circle_outline, color: Colors.grey, size: 16),
+                    ),
                   ],
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  item.subtitle,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Colors.grey[700],
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  item.timeLocation,
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: Colors.grey[500],
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
