@@ -81,7 +81,7 @@ class _PeringatanPageState extends State<PeringatanPage> {
   ];
 
   Future<void> _makeEmergencyCall() async {
-    const String phoneNumber = '08123456789';
+    const String phoneNumber = '081332190177';
     final Uri launchUri = Uri.parse('tel:$phoneNumber');
     if (await canLaunchUrl(launchUri)) {
       await launchUrl(launchUri);

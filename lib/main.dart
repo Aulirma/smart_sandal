@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'pages/splash_screen.dart';
+// import 'pages/splash_screen.dart';
+import 'pages/cobatok.dart';
 
 void main() {
   runApp(const MyApp());
@@ -17,7 +18,8 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.teal),
         useMaterial3: true,
       ),
-      home: const SplashScreen(),
+      // home: const SplashScreen(),
+      home: SensorMonitoringPage(),
     );
   }
 }
