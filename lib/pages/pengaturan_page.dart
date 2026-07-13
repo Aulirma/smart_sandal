@@ -6,6 +6,9 @@ import 'izin_app_page.dart';
 import 'bantuan_page.dart';
 import 'login_page.dart';
 import 'laporan_harian_page.dart';
+import '../theme/theme_controller.dart';
+import '../main.dart';
+import '../theme/app_theme.dart';
 
 class PengaturanPage extends StatefulWidget {
   final VoidCallback onBackPressed;
@@ -29,7 +32,7 @@ class _PengaturanPageState extends State<PengaturanPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: bgColor,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
@@ -68,24 +71,23 @@ class _PengaturanPageState extends State<PengaturanPage> {
           child: Container(
             width: 54,
             height: 54,
-            decoration: const BoxDecoration(
-              color: Color(0xFFEFF4F5),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surfaceContainerHighest,
               shape: BoxShape.circle,
             ),
-            child: const Icon(
+            child: Icon(
               Icons.arrow_back,
-              color: darkText,
-              size: 28,
-            ),
+              color: Theme.of(context).colorScheme.onSurface,
+            )
           ),
         ),
         const SizedBox(width: 18),
-        const Text(
+        Text(
           'Pengaturan',
           style: TextStyle(
-            color: darkText,
+            color: Theme.of(context).colorScheme.onSurface,
+            fontWeight: FontWeight.w700,
             fontSize: 22,
-            fontWeight: FontWeight.w800,
           ),
         ),
       ],
@@ -110,7 +112,7 @@ class _PengaturanPageState extends State<PengaturanPage> {
                   width: 60,
                   height: 60,
                   decoration: BoxDecoration(
-                    color: teal,
+                    color: AppTheme.primaryColor,
                     borderRadius: BorderRadius.circular(30),
                   ),
                   child: const Icon(
@@ -120,14 +122,14 @@ class _PengaturanPageState extends State<PengaturanPage> {
                   ),
                 ),
                 const SizedBox(width: 18),
-                const Expanded(
+                Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         'Sarah Ahmad',
                         style: TextStyle(
-                          color: darkText,
+                          color: Theme.of(context).colorScheme.onSurface,
                           fontSize: 18,
                           fontWeight: FontWeight.w800,
                         ),
@@ -136,7 +138,7 @@ class _PengaturanPageState extends State<PengaturanPage> {
                       Text(
                         'sarah@email.com',
                         style: TextStyle(
-                          color: grayText,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                           fontSize: 15,
                           fontWeight: FontWeight.w500,
                         ),
@@ -144,12 +146,19 @@ class _PengaturanPageState extends State<PengaturanPage> {
                     ],
                   ),
                 ),
-                const Icon(Icons.chevron_right, color: grayText, size: 20),
+                Icon(
+                  Icons.chevron_right,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  size: 20,
+                ),
               ],
             ),
           ),
           const SizedBox(height: 22),
-          const Divider(color: Color(0xFFE2E7E9), thickness: 1),
+          Divider(
+            color: Theme.of(context).dividerColor,
+            thickness: 1,
+          ),
           const SizedBox(height: 10),
           InkWell(
             onTap: () {
@@ -161,7 +170,11 @@ class _PengaturanPageState extends State<PengaturanPage> {
             child: _menuTile(
               icon: Icons.shield_outlined,
               title: 'Ubah Kata Sandi',
-              trailing: const Icon(Icons.chevron_right, color: grayText, size: 20),
+              trailing: Icon(
+                Icons.chevron_right,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                size: 20,
+              ),
             ),
           ),
           InkWell(
@@ -174,7 +187,11 @@ class _PengaturanPageState extends State<PengaturanPage> {
             child: _menuTile(
               icon: Icons.security_rounded,
               title: 'Izin Aplikasi',
-              trailing: const Icon(Icons.chevron_right, color: grayText, size: 20),
+              trailing: Icon(
+                Icons.chevron_right,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                size: 20,
+              ),
             ),
           ),
         ],
@@ -194,10 +211,10 @@ class _PengaturanPageState extends State<PengaturanPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'NOTIFIKASI',
             style: TextStyle(
-              color: grayText,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
               fontSize: 16,
               fontWeight: FontWeight.w800,
               letterSpacing: 1.1,
@@ -238,10 +255,10 @@ class _PengaturanPageState extends State<PengaturanPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'UMUM',
             style: TextStyle(
-              color: grayText,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
               fontSize: 16,
               fontWeight: FontWeight.w800,
               letterSpacing: 1.1,
@@ -251,14 +268,21 @@ class _PengaturanPageState extends State<PengaturanPage> {
           _menuTile(
             icon: Icons.phone_outlined,
             title: 'Kontak Darurat',
-            trailing: const Icon(Icons.chevron_right, color: grayText, size: 20),
+            trailing: Icon(
+              Icons.chevron_right,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+              size: 20,
+            ),
           ),
           _menuTile(
             icon: Icons.dark_mode_outlined,
             title: 'Mode Gelap',
-            trailing: _switch(modeGelap, (value) {
-              setState(() => modeGelap = value);
-            }),
+            trailing: _switch(
+              themeController.isDarkMode,
+                  (value) {
+                themeController.toggleTheme(value);
+              },
+            ),
           ),
           InkWell(
             onTap: () {
@@ -271,7 +295,11 @@ class _PengaturanPageState extends State<PengaturanPage> {
               icon: Icons.help_outline,
               title: 'Bantuan & Dukungan',
               trailing:
-                  const Icon(Icons.chevron_right, color: grayText, size: 18),
+              Icon(
+                Icons.chevron_right,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                size: 20,
+              ),
             ),
           ),
           InkWell(
@@ -284,7 +312,11 @@ class _PengaturanPageState extends State<PengaturanPage> {
             child: _menuTile(
               icon: Icons.description_rounded,
               title: 'Legalitas & Privasi',
-              trailing: const Icon(Icons.chevron_right, color: grayText, size: 20),
+              trailing: Icon(
+                Icons.chevron_right,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                size: 20,
+              ),
             ),
           ),
         ],
@@ -296,22 +328,31 @@ class _PengaturanPageState extends State<PengaturanPage> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
+        backgroundColor: Theme.of(context).cardColor,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
         ),
-        title: const Text(
+        title: Text(
           'Konfirmasi Keluar',
-          style: TextStyle(fontWeight: FontWeight.bold),
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurface,
+            fontWeight: FontWeight.bold,
+          ),
         ),
-        content: const Text(
+        content: Text(
           'Apakah Anda yakin ingin keluar dari akun EMERYS Anda?',
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text(
+            child: Text(
               'Batal',
-              style: TextStyle(color: Colors.grey),
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                )
             ),
           ),
           TextButton(
@@ -322,10 +363,13 @@ class _PengaturanPageState extends State<PengaturanPage> {
                 (route) => false,
               );
             },
-            child: const Text(
+            child: Text(
               'Keluar',
-              style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
-            ),
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.error,
+                fontWeight: FontWeight.bold,
+              ),
+            )
           ),
         ],
       ),
@@ -338,17 +382,22 @@ class _PengaturanPageState extends State<PengaturanPage> {
       height: 64,
       child: ElevatedButton.icon(
         onPressed: () => _showLogoutDialog(context),
-        icon: const Icon(Icons.logout, color: Color(0xFFE14B4B), size: 28),
-        label: const Text(
+        icon: Icon(
+          Icons.logout,
+          color: Theme.of(context).colorScheme.error,
+          size: 28,
+        ),
+
+        label: Text(
           'Keluar',
           style: TextStyle(
-            color: Color(0xFFE14B4B),
+            color: Theme.of(context).colorScheme.error,
             fontSize: 20,
             fontWeight: FontWeight.w800,
           ),
         ),
         style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFFFDF1F1),
+          backgroundColor: Theme.of(context).cardColor,
           elevation: 0,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(28),
@@ -363,9 +412,11 @@ class _PengaturanPageState extends State<PengaturanPage> {
       width: double.infinity,
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: const Color(0xFFE1E6E8)),
+        border: Border.all(
+          color: Theme.of(context).dividerColor,
+        ),
       ),
       child: child,
     );
@@ -380,13 +431,17 @@ class _PengaturanPageState extends State<PengaturanPage> {
       padding: const EdgeInsets.symmetric(vertical: 10),
       child: Row(
         children: [
-          Icon(icon, color: teal, size: 25),
+          Icon(
+            icon,
+            color: AppTheme.primaryColor,
+            size: 25,
+          ),
           const SizedBox(width: 18),
           Expanded(
             child: Text(
               title,
-              style: const TextStyle(
-                color: darkText,
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurface,
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
               ),

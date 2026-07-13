@@ -4,6 +4,7 @@ import 'pantau_page.dart';
 import 'peringatan_page.dart';
 import 'profil_page.dart';
 import 'pengaturan_page.dart';
+import '../theme/app_theme.dart';
 
 class BottomNavigation extends StatefulWidget {
   const BottomNavigation({super.key});
@@ -26,12 +27,12 @@ class _BottomNavigationState extends State<BottomNavigation> {
     ];
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFB),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: pages[_currentIndex],
       bottomNavigationBar: BottomNavigationBar(
         type: BottomNavigationBarType.fixed,
-        selectedItemColor: const Color(0xFF0D9488),
-        unselectedItemColor: Colors.grey[400],
+        selectedItemColor: AppTheme.primaryColor,
+        unselectedItemColor: Theme.of(context).colorScheme.onSurfaceVariant,
         currentIndex: _currentIndex,
         onTap: (index) {
           setState(() {

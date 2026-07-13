@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import '../theme/theme_controller.dart';
+import '../main.dart';
+import '../theme/app_theme.dart';
 
 class HomePage extends StatelessWidget {
   final VoidCallback onNotificationPressed;
@@ -16,20 +19,20 @@ class HomePage extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildLiveLocation(),
+                _buildLiveLocation(context),
                 const SizedBox(height: 24),
-                _buildMetricsRow(),
+                _buildMetricsRow(context),
                 const SizedBox(height: 24),
-                const Text(
+                Text(
                   'Aktivitas Hari Ini',
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
-                    color: Color(0xFF2D3142),
+                    color: Theme.of(context).colorScheme.onSurface,
                   ),
                 ),
                 const SizedBox(height: 16),
-                _buildActivityTimeline(),
+                _buildActivityTimeline(context),
               ],
             ),
           ),
@@ -113,7 +116,7 @@ class HomePage extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.9),
+              color: Theme.of(context).cardColor,
               borderRadius: BorderRadius.circular(24),
             ),
             child: Column(
@@ -133,17 +136,19 @@ class HomePage extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
+                          Text(
                             'Nenek Aishah',
                             style: TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
-                              color: Color(0xFF1E293B),
+                              color: Theme.of(context).colorScheme.onSurface,
                             ),
                           ),
                           Text(
                             'Terakhir aktif: 5 menit lalu',
-                            style: TextStyle(color: Colors.grey[600], fontSize: 13),
+                            style: TextStyle(color: Theme.of(context)
+                                .colorScheme
+                                .onSurfaceVariant, fontSize: 13),
                           ),
                         ],
                       ),
@@ -151,7 +156,7 @@ class HomePage extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFF0FDFA),
+                        color: AppTheme.primaryColor.withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Row(
@@ -246,7 +251,7 @@ class HomePage extends StatelessWidget {
     );
   }
 
-  Widget _buildLiveLocation() {
+  Widget _buildLiveLocation(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -265,8 +270,11 @@ class HomePage extends StatelessWidget {
             ),
             Text(
               'Diperbarui 30 detik lalu',
-              style: TextStyle(color: Colors.grey[500], fontSize: 12),
-            ),
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                fontSize: 12,
+              ),
+            )
           ],
         ),
         const SizedBox(height: 12),
@@ -302,7 +310,7 @@ class HomePage extends StatelessWidget {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: Theme.of(context).cardColor,
                     borderRadius: BorderRadius.circular(12),
                     boxShadow: [
                       BoxShadow(
@@ -357,14 +365,17 @@ class HomePage extends StatelessWidget {
                         ),
                         Text(
                           'Taman Sri Muda, Shah Alam',
-                          style: TextStyle(fontSize: 10, color: Colors.grey[600]),
+                          style: TextStyle(fontSize: 10, color: Theme.of(context).colorScheme.onSurfaceVariant,),
                         ),
                       ],
                     ),
                     Text(
                       '3.1390°N\n101.6869°E',
                       textAlign: TextAlign.right,
-                      style: TextStyle(fontSize: 10, color: Colors.grey[600]),
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      )
                     ),
                   ],
                 ),
@@ -376,10 +387,11 @@ class HomePage extends StatelessWidget {
     );
   }
 
-  Widget _buildMetricsRow() {
+  Widget _buildMetricsRow(BuildContext context) {
     return Row(
       children: [
         _buildMetricCard(
+          context,
           icon: Icons.stacked_line_chart,
           value: '2.340',
           label: 'Langkah Hari Ini',
@@ -387,23 +399,26 @@ class HomePage extends StatelessWidget {
         ),
         const SizedBox(width: 12),
         _buildMetricCard(
+          context,
           icon: Icons.battery_charging_full,
           value: '78%',
           label: 'Baterai',
           color: const Color(0xFF0D9488),
         ),
-        const SizedBox(width: 12),
-        _buildMetricCard(
-          icon: Icons.shield_outlined,
-          value: 'AI',
-          label: 'Pemantauan',
-          color: const Color(0xFF0D9488),
-        ),
+        // const SizedBox(width: 12),
+        // _buildMetricCard(
+        //   context,
+        //   icon: Icons.shield_outlined,
+        //   value: 'AI',
+        //   label: 'Pemantauan',
+        //   color: const Color(0xFF0D9488),
+        // ),
       ],
     );
   }
 
-  Widget _buildMetricCard({
+  Widget _buildMetricCard(
+      BuildContext context, {
     required IconData icon,
     required String value,
     required String label,
@@ -413,7 +428,7 @@ class HomePage extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 8),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: Theme.of(context).cardColor,
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
@@ -429,17 +444,17 @@ class HomePage extends StatelessWidget {
             const SizedBox(height: 12),
             Text(
               value,
-              style: const TextStyle(
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurface,
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
-                color: Color(0xFF1E293B),
-              ),
+              )
             ),
             const SizedBox(height: 4),
             Text(
               label,
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 11, color: Colors.grey[500]),
+              style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant,),
             ),
           ],
         ),
@@ -447,10 +462,11 @@ class HomePage extends StatelessWidget {
     );
   }
 
-  Widget _buildActivityTimeline() {
+  Widget _buildActivityTimeline(BuildContext context) {
     return Column(
       children: [
         _buildTimelineItem(
+          context,
           time: '08:30',
           title: 'Jalan pagi dimulai',
           subtitle: 'Pola langkah stabil terdeteksi',
@@ -459,6 +475,7 @@ class HomePage extends StatelessWidget {
           isFirst: true,
         ),
         _buildTimelineItem(
+          context,
           time: '09:15',
           title: 'Ketidakstabilan ringan terdeteksi',
           subtitle: 'Langkah goyah sesaat — segera pulih',
@@ -466,6 +483,7 @@ class HomePage extends StatelessWidget {
           color: Colors.orange,
         ),
         _buildTimelineItem(
+          context,
           time: '10:00',
           title: 'Jalan kaki normal dilanjutkan',
           subtitle: 'Semua pola dalam rentang aman',
@@ -477,7 +495,8 @@ class HomePage extends StatelessWidget {
     );
   }
 
-  Widget _buildTimelineItem({
+  Widget _buildTimelineItem(
+      BuildContext context, {
     required String time,
     required String title,
     required String subtitle,
@@ -503,7 +522,7 @@ class HomePage extends StatelessWidget {
                 Expanded(
                   child: Container(
                     width: 2,
-                    color: Colors.grey[300],
+                    color: Theme.of(context).dividerColor,
                   ),
                 ),
             ],
@@ -520,31 +539,31 @@ class HomePage extends StatelessWidget {
                     children: [
                       Text(
                         title,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 14,
-                          color: Color(0xFF1E293B),
-                        ),
+                          color: Theme.of(context).colorScheme.onSurface,
+                        )
                       ),
                       Text(
                         time,
-                        style: TextStyle(color: Colors.grey[500], fontSize: 12),
+                        style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12),
                       ),
                     ],
                   ),
                   const SizedBox(height: 4),
                   Text(
                     subtitle,
-                    style: TextStyle(color: Colors.grey[600], fontSize: 13),
+                    style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 13),
                   ),
                   const SizedBox(height: 8),
                   Row(
                     children: [
-                      Icon(Icons.location_on, size: 12, color: Colors.grey[400]),
+                      Icon(Icons.location_on, size: 12, color: Theme.of(context).colorScheme.onSurfaceVariant,),
                       const SizedBox(width: 4),
                       Text(
                         location,
-                        style: TextStyle(color: Colors.grey[400], fontSize: 12),
+                        style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12),
                       ),
                     ],
                   ),

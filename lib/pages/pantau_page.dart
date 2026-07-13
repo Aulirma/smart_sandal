@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/app_theme.dart';
 
 class PantauPage extends StatelessWidget {
   final VoidCallback? onBackPressed;
@@ -23,7 +24,10 @@ class PantauPage extends StatelessWidget {
                     children: [
                       if (onBackPressed != null)
                         IconButton(
-                          icon: const Icon(Icons.arrow_back),
+                          icon: Icon(
+                            Icons.arrow_back,
+                            color: Theme.of(context).colorScheme.onSurface,
+                          ),
                           onPressed: onBackPressed,
                           padding: EdgeInsets.zero,
                           constraints: const BoxConstraints(),
@@ -33,22 +37,23 @@ class PantauPage extends StatelessWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text(
+                            Text(
                               'Pemantauan Langsung',
                               style: TextStyle(
                                 fontSize: 22,
                                 fontWeight: FontWeight.bold,
-                                color: Color(0xFF1E293B),
+                                color: Theme.of(context).colorScheme.onSurface,
                               ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
                             Text(
                               'Data langsung dari sandal pintar',
-                              style: TextStyle(color: Colors.grey[500], fontSize: 13),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
+                              style: TextStyle(
+                                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                fontSize: 13,
+                              ),
+                            )
                           ],
                         ),
                       ),
@@ -59,7 +64,7 @@ class PantauPage extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF0FDFA),
+                    color: AppTheme.primaryColor.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Row(
@@ -82,19 +87,19 @@ class PantauPage extends StatelessWidget {
             ),
             const SizedBox(height: 24),
             // Status Card
-            _buildPantauStatusCard(),
+            _buildPantauStatusCard(context),
             const SizedBox(height: 24),
             // Lokasi Langsung Card
-            _buildPantauLocationCard(),
+            _buildPantauLocationCard(context),
             const SizedBox(height: 24),
             // Pola Langkah Card
-            _buildPantauStepPatternCard(),
+            _buildPantauStepPatternCard(context),
             const SizedBox(height: 24),
             // Intensitas Gerakan Card
-            _buildPantauIntensityCard(),
+            _buildPantauIntensityCard(context),
             const SizedBox(height: 24),
             // Peringatan Terbaru Card
-            _buildPantauAlertsCard(),
+            _buildPantauAlertsCard(context),
             const SizedBox(height: 20),
           ],
         ),
@@ -102,12 +107,12 @@ class PantauPage extends StatelessWidget {
     );
   }
 
-  Widget _buildPantauStatusCard() {
+  Widget _buildPantauStatusCard(BuildContext context) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
@@ -135,7 +140,10 @@ class PantauPage extends StatelessWidget {
                 children: [
                   Text(
                     'Status Saat Ini',
-                    style: TextStyle(color: Colors.grey[500], fontSize: 12),
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      fontSize: 12,
+                    ),
                   ),
                   const Text(
                     'Berjalan Normal',
@@ -152,11 +160,11 @@ class PantauPage extends StatelessWidget {
           const SizedBox(height: 16),
           Row(
             children: [
-              _buildPillButton('Normal', true),
+              _buildPillButton(context, 'Normal', true),
               const SizedBox(width: 8),
-              _buildPillButton('Tidak Stabil', false),
+              _buildPillButton(context, 'Tidak Stabil', false),
               const SizedBox(width: 8),
-              _buildPillButton('Risiko Jatuh', false),
+              _buildPillButton(context, 'Risiko Jatuh', false),
             ],
           ),
         ],
@@ -164,22 +172,28 @@ class PantauPage extends StatelessWidget {
     );
   }
 
-  Widget _buildPillButton(String label, bool isActive) {
+  Widget _buildPillButton(BuildContext context, String label, bool isActive) {
     return Expanded(
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 8),
         decoration: BoxDecoration(
-          color: isActive ? const Color(0xFFF0FDFA) : Colors.transparent,
+          color: isActive
+              ? AppTheme.primaryColor.withValues(alpha: 0.15)
+              : Colors.transparent,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: isActive ? const Color(0xFF2DD4BF) : Colors.grey[300]!,
+            color: isActive
+                ? AppTheme.primaryColor
+                : Theme.of(context).dividerColor,
           ),
         ),
         child: Text(
           label,
           textAlign: TextAlign.center,
           style: TextStyle(
-            color: isActive ? const Color(0xFF0D9488) : Colors.grey[500],
+            color: isActive
+                ? AppTheme.primaryColor
+                : Theme.of(context).colorScheme.onSurfaceVariant,
             fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
             fontSize: 12,
           ),
@@ -188,12 +202,12 @@ class PantauPage extends StatelessWidget {
     );
   }
 
-  Widget _buildPantauLocationCard() {
+  Widget _buildPantauLocationCard(BuildContext context) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
@@ -209,22 +223,36 @@ class PantauPage extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Row(
-                children: const [
-                  Icon(Icons.location_on_outlined, color: Color(0xFF0D9488), size: 18),
-                  SizedBox(width: 8),
+                children: [
+                  Icon(
+                    Icons.location_on_outlined,
+                    color: AppTheme.primaryColor,
+                    size: 18,
+                  ),
+                  const SizedBox(width: 8),
                   Text(
                     'Lokasi Langsung',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
                   ),
                 ],
               ),
               Row(
                 children: [
-                  Icon(Icons.analytics_outlined, color: Colors.grey[400], size: 14),
+                  Icon(
+                    Icons.analytics_outlined,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
                   const SizedBox(width: 4),
                   Text(
                     'Jejak Aktif',
-                    style: TextStyle(color: Colors.grey[400], fontSize: 11),
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      fontSize: 11,
+                    ),
                   ),
                 ],
               ),
@@ -235,7 +263,7 @@ class PantauPage extends StatelessWidget {
             height: 160,
             width: double.infinity,
             decoration: BoxDecoration(
-              color: const Color(0xFFE0F2F1).withValues(alpha: 0.5),
+              color: AppTheme.primaryColor.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(20),
             ),
             child: Stack(
@@ -257,7 +285,7 @@ class PantauPage extends StatelessWidget {
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: Theme.of(context).cardColor,
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Row(
@@ -279,18 +307,22 @@ class PantauPage extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(
-                        children: const [
+                        children: [
                           Icon(Icons.near_me, size: 12, color: Color(0xFF0D9488)),
                           SizedBox(width: 4),
                           Text(
                             'Nenek Aishah',
-                            style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: Theme.of(context).colorScheme.onSurface,
+                            ),
                           ),
                         ],
                       ),
                       Text(
                         'Taman Sri Muda, Shah Alam',
-                        style: TextStyle(fontSize: 9, color: Colors.grey[600]),
+                        style: TextStyle(fontSize: 9, color: Theme.of(context).colorScheme.onSurfaceVariant,),
                       ),
                     ],
                   ),
@@ -301,7 +333,7 @@ class PantauPage extends StatelessWidget {
                   child: Text(
                     '3.1390°N\n101.6869°E',
                     textAlign: TextAlign.right,
-                    style: TextStyle(fontSize: 9, color: Colors.grey[600]),
+                    style: TextStyle(fontSize: 9, color: Theme.of(context).colorScheme.onSurfaceVariant,),
                   ),
                 ),
               ],
@@ -311,9 +343,9 @@ class PantauPage extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _buildMetricColumn('Jarak', '1,2 km'),
-              _buildMetricColumn('Durasi', '28 menit'),
-              _buildMetricColumn('Kecepatan', '2,6 km/j'),
+              _buildMetricColumn(context, 'Jarak', '1,2 km'),
+              _buildMetricColumn(context, 'Durasi', '28 menit'),
+              _buildMetricColumn(context, 'Kecepatan', '2,6 km/j'),
             ],
           ),
         ],
@@ -321,28 +353,35 @@ class PantauPage extends StatelessWidget {
     );
   }
 
-  Widget _buildMetricColumn(String label, String value) {
+  Widget _buildMetricColumn(BuildContext context, String label, String value) {
     return Column(
       children: [
         Text(
           label,
-          style: TextStyle(color: Colors.grey[500], fontSize: 11),
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+            fontSize: 11,
+          ),
         ),
         const SizedBox(height: 4),
         Text(
           value,
-          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 15,
+            color: Theme.of(context).colorScheme.onSurface,
+          ),
         ),
       ],
     );
   }
 
-  Widget _buildPantauStepPatternCard() {
+  Widget _buildPantauStepPatternCard(BuildContext context) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
@@ -358,18 +397,29 @@ class PantauPage extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Row(
-                children: const [
-                  Icon(Icons.insights, color: Color(0xFF0D9488), size: 18),
-                  SizedBox(width: 8),
-                  Text(
-                    'Pola Langkah',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-                  ),
-                ],
+                  children: [
+                    const Icon(
+                      Icons.insights,
+                      color: AppTheme.primaryColor,
+                      size: 18,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Pola Langkah',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                        color: Theme.of(context).colorScheme.onSurface,
+                      ),
+                    ),
+                  ],
               ),
               Text(
                 '30 menit terakhir',
-                style: TextStyle(color: Colors.grey[400], fontSize: 11),
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  fontSize: 11,
+                ),
               ),
             ],
           ),
@@ -396,8 +446,20 @@ class PantauPage extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('30 menit lalu', style: TextStyle(color: Colors.grey[400], fontSize: 10)),
-              Text('Sekarang', style: TextStyle(color: Colors.grey[400], fontSize: 10)),
+              Text(
+                '30 menit lalu',
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  fontSize: 10,
+                ),
+              ),
+              Text(
+                'Sekarang',
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  fontSize: 10,
+                ),
+              ),
             ],
           ),
         ],
@@ -405,12 +467,12 @@ class PantauPage extends StatelessWidget {
     );
   }
 
-  Widget _buildPantauIntensityCard() {
+  Widget _buildPantauIntensityCard(BuildContext context) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
@@ -423,34 +485,42 @@ class PantauPage extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            children: const [
-              Icon(Icons.bolt, color: Color(0xFF0D9488), size: 18),
-              SizedBox(width: 8),
+            children: [
+              const Icon(
+                Icons.bolt,
+                color: AppTheme.primaryColor,
+                size: 18,
+              ),
+              const SizedBox(width: 8),
               Text(
                 'Intensitas Gerakan',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 15,
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
               ),
             ],
           ),
           const SizedBox(height: 20),
-          _buildIntensityRow('Kaki Kiri', 0.62, '62%'),
+          _buildIntensityRow(context, 'Kaki Kiri', 0.62, '62%'),
           const SizedBox(height: 16),
-          _buildIntensityRow('Kaki Kanan', 0.58, '58%'),
+          _buildIntensityRow(context, 'Kaki Kanan', 0.58, '58%'),
           const SizedBox(height: 16),
-          _buildIntensityRow('Skor Keseimbangan', 0.85, '85%'),
+          _buildIntensityRow(context, 'Skor Keseimbangan', 0.85, '85%'),
         ],
       ),
     );
   }
 
-  Widget _buildIntensityRow(String label, double value, String percentage) {
+  Widget _buildIntensityRow(BuildContext context, String label, double value, String percentage) {
     return Column(
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(label, style: TextStyle(color: Colors.grey[600], fontSize: 12)),
-            Text(percentage, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+            Text(label, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12)),
+            Text(percentage, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Theme.of(context).colorScheme.onSurface)),
           ],
         ),
         const SizedBox(height: 8),
@@ -458,7 +528,7 @@ class PantauPage extends StatelessWidget {
           borderRadius: BorderRadius.circular(4),
           child: LinearProgressIndicator(
             value: value,
-            backgroundColor: Colors.grey[100],
+            backgroundColor: Theme.of(context).dividerColor,
             color: const Color(0xFF2DD4BF),
             minHeight: 8,
           ),
@@ -467,12 +537,12 @@ class PantauPage extends StatelessWidget {
     );
   }
 
-  Widget _buildPantauAlertsCard() {
+  Widget _buildPantauAlertsCard(BuildContext context) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
@@ -485,23 +555,31 @@ class PantauPage extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            children: const [
-              Icon(Icons.warning_amber_rounded, color: Color(0xFFF59E0B), size: 18),
-              SizedBox(width: 8),
+            children: [
+              const Icon(
+                Icons.warning_amber_rounded,
+                color: Color(0xFFF59E0B),
+                size: 18,
+              ),
+              const SizedBox(width: 8),
               Text(
                 'Peringatan Terbaru',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 15,
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
               ),
             ],
           ),
           const SizedBox(height: 16),
-          _buildPantauAlertItem(
+          _buildPantauAlertItem(context,
             'Ketidakstabilan sesaat terdeteksi',
             '09:15  •  Dekat area pasar',
             const Color(0xFFFFF7ED),
           ),
           const SizedBox(height: 12),
-          _buildPantauAlertItem(
+          _buildPantauAlertItem(context,
             'Risiko jatuh meningkat selama 10 menit',
             'Kemarin  •  Taman rumah',
             const Color(0xFFFFF7ED),
@@ -511,11 +589,13 @@ class PantauPage extends StatelessWidget {
     );
   }
 
-  Widget _buildPantauAlertItem(String title, String subtitle, Color bgColor) {
+  Widget _buildPantauAlertItem(BuildContext context, String title, String subtitle, Color bgColor) {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: bgColor,
+        color: Theme.of(context).brightness == Brightness.dark
+            ? const Color(0xFF3A2A12)
+            : bgColor,
         borderRadius: BorderRadius.circular(16),
       ),
       child: Row(
@@ -536,12 +616,16 @@ class PantauPage extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF1E293B)),
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                    color: Theme.of(context).colorScheme.onSurface,
+                  )
                 ),
                 const SizedBox(height: 4),
                 Text(
                   subtitle,
-                  style: TextStyle(color: Colors.grey[500], fontSize: 11),
+                  style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 11),
                 ),
               ],
             ),
