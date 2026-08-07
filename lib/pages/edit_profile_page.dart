@@ -83,17 +83,22 @@ class _EditProfilePageState extends State<EditProfilePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: Theme.of(context).appBarTheme.backgroundColor ??
+            Theme.of(context).colorScheme.surface,
         elevation: 0,
+        scrolledUnderElevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black87),
+          icon: Icon(Icons.arrow_back,
+              color: Theme.of(context).colorScheme.onSurface),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
+        title: Text(
           'Edit Profil Pendamping',
-          style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold),
+          style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurface,
+              fontWeight: FontWeight.bold),
         ),
       ),
       body: SingleChildScrollView(
@@ -105,32 +110,30 @@ class _EditProfilePageState extends State<EditProfilePage> {
               _buildInputLabel("Nama Lengkap"),
               _buildTextField(_nameController, "Masukkan nama lengkap Anda"),
               const SizedBox(height: 20),
-
               _buildInputLabel("Tanggal Lahir"),
               GestureDetector(
                 onTap: () => _selectDate(context),
                 child: AbsorbPointer(
                   child: _buildTextField(
-                    _dobController, 
+                    _dobController,
                     "Pilih tanggal lahir Anda",
-                    suffixIcon: const Icon(Icons.calendar_today, color: Colors.grey, size: 20),
+                    suffixIcon: const Icon(Icons.calendar_today,
+                        color: Colors.grey, size: 20),
                   ),
                 ),
               ),
               const SizedBox(height: 20),
-
               _buildInputLabel("Email"),
-              _buildTextField(_emailController, "Masukkan email Anda", keyboardType: TextInputType.emailAddress),
+              _buildTextField(_emailController, "Masukkan email Anda",
+                  keyboardType: TextInputType.emailAddress),
               const SizedBox(height: 20),
-
               _buildInputLabel("Nomor Telepon"),
-              _buildTextField(_phoneController, "Masukkan nomor telepon aktif Anda", keyboardType: TextInputType.phone),
+              _buildTextField(_phoneController, "Masukkan nomor telepon aktif Anda",
+                  keyboardType: TextInputType.phone),
               const SizedBox(height: 20),
-
               _buildInputLabel("Alamat Lengkap"),
               _buildTextField(_addressController, "Masukkan alamat lengkap Anda"),
               const SizedBox(height: 40),
-
               SizedBox(
                 width: double.infinity,
                 height: 55,
@@ -143,7 +146,10 @@ class _EditProfilePageState extends State<EditProfilePage> {
                   ),
                   child: const Text(
                     'Simpan Perubahan',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+                    style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white),
                   ),
                 ),
               ),
@@ -160,13 +166,15 @@ class _EditProfilePageState extends State<EditProfilePage> {
       padding: const EdgeInsets.only(bottom: 8.0),
       child: Text(
         label,
-        style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87),
+        style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: Theme.of(context).colorScheme.onSurface),
       ),
     );
   }
 
   Widget _buildTextField(
-    TextEditingController controller, 
+    TextEditingController controller,
     String hint, {
     TextInputType keyboardType = TextInputType.text,
     bool obscureText = false,
@@ -176,14 +184,20 @@ class _EditProfilePageState extends State<EditProfilePage> {
       controller: controller,
       keyboardType: keyboardType,
       obscureText: obscureText,
+      style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
       decoration: InputDecoration(
         hintText: hint,
+        hintStyle: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
         filled: true,
-        fillColor: Colors.grey[100],
+        fillColor: Theme.of(context).cardColor,
         suffixIcon: suffixIcon,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(15),
-          borderSide: BorderSide.none,
+          borderSide: BorderSide(color: Theme.of(context).dividerColor),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(15),
+          borderSide: BorderSide(color: Theme.of(context).dividerColor),
         ),
         contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       ),

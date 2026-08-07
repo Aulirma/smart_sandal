@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import '../theme/theme_controller.dart';
-import '../main.dart';
 import '../theme/app_theme.dart';
 
 class HomePage extends StatelessWidget {
@@ -9,34 +7,37 @@ class HomePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildHeader(context),
-          Padding(
-            padding: const EdgeInsets.all(20.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildLiveLocation(context),
-                const SizedBox(height: 24),
-                _buildMetricsRow(context),
-                const SizedBox(height: 24),
-                Text(
-                  'Aktivitas Hari Ini',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Theme.of(context).colorScheme.onSurface,
+    return Scaffold(
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      body: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildHeader(context),
+            Padding(
+              padding: const EdgeInsets.all(20.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildLiveLocation(context),
+                  const SizedBox(height: 24),
+                  _buildMetricsRow(context),
+                  const SizedBox(height: 24),
+                  Text(
+                    'Aktivitas Hari Ini',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 16),
-                _buildActivityTimeline(context),
-              ],
+                  const SizedBox(height: 16),
+                  _buildActivityTimeline(context),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -89,7 +90,8 @@ class HomePage extends StatelessWidget {
                         color: Colors.white.withValues(alpha: 0.2),
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(Icons.notifications_none, color: Colors.white),
+                      child: const Icon(Icons.notifications_none,
+                          color: Colors.white),
                     ),
                     Positioned(
                       right: 0,
@@ -129,7 +131,8 @@ class HomePage extends StatelessWidget {
                         color: const Color(0xFF2DD4BF).withValues(alpha: 0.2),
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(Icons.favorite, color: Color(0xFF0D9488)),
+                      child:
+                          const Icon(Icons.favorite, color: Color(0xFF0D9488)),
                     ),
                     const SizedBox(width: 16),
                     Expanded(
@@ -146,15 +149,18 @@ class HomePage extends StatelessWidget {
                           ),
                           Text(
                             'Terakhir aktif: 5 menit lalu',
-                            style: TextStyle(color: Theme.of(context)
-                                .colorScheme
-                                .onSurfaceVariant, fontSize: 13),
+                            style: TextStyle(
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onSurfaceVariant,
+                                fontSize: 13),
                           ),
                         ],
                       ),
                     ),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 6),
                       decoration: BoxDecoration(
                         color: AppTheme.primaryColor.withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(20),
@@ -232,7 +238,8 @@ class HomePage extends StatelessWidget {
                 const SizedBox(width: 4),
                 Text(
                   label,
-                  style: TextStyle(color: color.withValues(alpha: 0.7), fontSize: 11),
+                  style: TextStyle(
+                      color: color.withValues(alpha: 0.7), fontSize: 11),
                 ),
               ],
             ),
@@ -260,7 +267,8 @@ class HomePage extends StatelessWidget {
           children: [
             Row(
               children: const [
-                Icon(Icons.location_on_outlined, color: Color(0xFF0D9488), size: 20),
+                Icon(Icons.location_on_outlined,
+                    color: Color(0xFF0D9488), size: 20),
                 SizedBox(width: 8),
                 Text(
                   'Lokasi Langsung',
@@ -282,9 +290,9 @@ class HomePage extends StatelessWidget {
           height: 180,
           width: double.infinity,
           decoration: BoxDecoration(
-            color: const Color(0xFFE0F2F1),
+            color: Theme.of(context).cardColor,
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.teal.withValues(alpha: 0.1)),
+            border: Border.all(color: Theme.of(context).dividerColor),
           ),
           child: Stack(
             children: [
@@ -308,7 +316,8 @@ class HomePage extends StatelessWidget {
                 top: 16,
                 right: 16,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
                     color: Theme.of(context).cardColor,
                     borderRadius: BorderRadius.circular(12),
@@ -355,28 +364,32 @@ class HomePage extends StatelessWidget {
                       children: [
                         Row(
                           children: const [
-                            Icon(Icons.near_me, size: 12, color: Color(0xFF0D9488)),
+                            Icon(Icons.near_me,
+                                size: 12, color: Color(0xFF0D9488)),
                             SizedBox(width: 4),
                             Text(
                               'Nenek Aishah',
-                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                              style: TextStyle(
+                                  fontSize: 12, fontWeight: FontWeight.bold),
                             ),
                           ],
                         ),
                         Text(
                           'Taman Sri Muda, Shah Alam',
-                          style: TextStyle(fontSize: 10, color: Theme.of(context).colorScheme.onSurfaceVariant,),
+                          style: TextStyle(
+                            fontSize: 10,
+                            color:
+                                Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
                         ),
                       ],
                     ),
-                    Text(
-                      '3.1390°N\n101.6869°E',
-                      textAlign: TextAlign.right,
-                      style: TextStyle(
-                        fontSize: 10,
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      )
-                    ),
+                    Text('3.1390°N\n101.6869°E',
+                        textAlign: TextAlign.right,
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        )),
                   ],
                 ),
               ),
@@ -405,20 +418,12 @@ class HomePage extends StatelessWidget {
           label: 'Baterai',
           color: const Color(0xFF0D9488),
         ),
-        // const SizedBox(width: 12),
-        // _buildMetricCard(
-        //   context,
-        //   icon: Icons.shield_outlined,
-        //   value: 'AI',
-        //   label: 'Pemantauan',
-        //   color: const Color(0xFF0D9488),
-        // ),
       ],
     );
   }
 
   Widget _buildMetricCard(
-      BuildContext context, {
+    BuildContext context, {
     required IconData icon,
     required String value,
     required String label,
@@ -430,6 +435,7 @@ class HomePage extends StatelessWidget {
         decoration: BoxDecoration(
           color: Theme.of(context).cardColor,
           borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Theme.of(context).dividerColor),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.03),
@@ -442,19 +448,20 @@ class HomePage extends StatelessWidget {
           children: [
             Icon(icon, color: color, size: 28),
             const SizedBox(height: 12),
-            Text(
-              value,
-              style: TextStyle(
-                color: Theme.of(context).colorScheme.onSurface,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              )
-            ),
+            Text(value,
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurface,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                )),
             const SizedBox(height: 4),
             Text(
               label,
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant,),
+              style: TextStyle(
+                fontSize: 11,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
             ),
           ],
         ),
@@ -496,7 +503,7 @@ class HomePage extends StatelessWidget {
   }
 
   Widget _buildTimelineItem(
-      BuildContext context, {
+    BuildContext context, {
     required String time,
     required String title,
     required String subtitle,
@@ -537,33 +544,42 @@ class HomePage extends StatelessWidget {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        title,
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                          color: Theme.of(context).colorScheme.onSurface,
-                        )
-                      ),
+                      Text(title,
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                            color: Theme.of(context).colorScheme.onSurface,
+                          )),
                       Text(
                         time,
-                        style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12),
+                        style: TextStyle(
+                            color:
+                                Theme.of(context).colorScheme.onSurfaceVariant,
+                            fontSize: 12),
                       ),
                     ],
                   ),
                   const SizedBox(height: 4),
                   Text(
                     subtitle,
-                    style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 13),
+                    style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        fontSize: 13),
                   ),
                   const SizedBox(height: 8),
                   Row(
                     children: [
-                      Icon(Icons.location_on, size: 12, color: Theme.of(context).colorScheme.onSurfaceVariant,),
+                      Icon(Icons.location_on,
+                          size: 12,
+                          color:
+                              Theme.of(context).colorScheme.onSurfaceVariant),
                       const SizedBox(width: 4),
                       Text(
                         location,
-                        style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12),
+                        style: TextStyle(
+                            color:
+                                Theme.of(context).colorScheme.onSurfaceVariant,
+                            fontSize: 12),
                       ),
                     ],
                   ),

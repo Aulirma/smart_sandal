@@ -6,7 +6,6 @@ import 'izin_app_page.dart';
 import 'bantuan_page.dart';
 import 'login_page.dart';
 import 'laporan_harian_page.dart';
-import '../theme/theme_controller.dart';
 import '../main.dart';
 import '../theme/app_theme.dart';
 
@@ -23,11 +22,6 @@ class _PengaturanPageState extends State<PengaturanPage> {
   bool smsDarurat = true;
   bool laporanHarian = true;
   bool modeGelap = true;
-
-  static const Color teal = Color(0xFF2FB4A6);
-  static const Color darkText = Color(0xFF1E2A35);
-  static const Color grayText = Color(0xFF8B96A1);
-  static const Color bgColor = Color(0xFFF8FAFB);
 
   @override
   Widget build(BuildContext context) {
@@ -464,7 +458,7 @@ class _PengaturanPageState extends State<PengaturanPage> {
           onChanged: onChanged,
           materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
           activeThumbColor: Colors.white,
-          activeTrackColor: teal,
+          activeTrackColor: const Color(0xFF2FB4A6),
           inactiveThumbColor: Colors.white,
           inactiveTrackColor: const Color(0xFFD4DDE0),
         ),

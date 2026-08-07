@@ -6,24 +6,23 @@ class BantuanPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const Color teal = Color(0xFF0D8B94);
-    const Color darkText = Color(0xFF1E2A35);
-    const Color grayText = Color(0xFF8B96A1);
-    const Color bgColor = Color(0xFFF8FAFB);
 
     return Scaffold(
-      backgroundColor: bgColor,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: Theme.of(context).appBarTheme.backgroundColor ??
+            Theme.of(context).colorScheme.surface,
         elevation: 0,
         scrolledUnderElevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: darkText),
+          icon: Icon(Icons.arrow_back,
+              color: Theme.of(context).colorScheme.onSurface),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
+        title: Text(
           'Bantuan & Dukungan',
           style: TextStyle(
-            color: darkText,
+            color: Theme.of(context).colorScheme.onSurface,
             fontSize: 18,
             fontWeight: FontWeight.bold,
           ),
@@ -35,12 +34,12 @@ class BantuanPage extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Section 1 Heading
-            const Padding(
-              padding: EdgeInsets.only(left: 4.0, bottom: 12.0),
+            Padding(
+              padding: const EdgeInsets.only(left: 4.0, bottom: 12.0),
               child: Text(
                 'PERTANYAAN POPULER (FAQ)',
                 style: TextStyle(
-                  color: grayText,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                   fontSize: 13,
                   fontWeight: FontWeight.bold,
                   letterSpacing: 1.1,
@@ -50,9 +49,9 @@ class BantuanPage extends StatelessWidget {
 
             Container(
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: Theme.of(context).cardColor,
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: const Color(0xFFE1E6E8)),
+                border: Border.all(color: Theme.of(context).dividerColor),
               ),
               child: Theme(
                 data: Theme.of(context).copyWith(
@@ -63,21 +62,24 @@ class BantuanPage extends StatelessWidget {
                     _buildExpansionTile(
                       context,
                       title: 'Bagaimana cara menghubungkan sandal?',
-                      subtitle: 'Pastikan Bluetooth ponsel Anda aktif, lalu buka menu Manajemen Perangkat dan pilih \'EMERYS Smart Sandal\' untuk memulai pairing.',
+                      subtitle:
+                          'Pastikan Bluetooth ponsel Anda aktif, lalu buka menu Manajemen Perangkat dan pilih \'EMERYS Smart Sandal\' untuk memulai pairing.',
                       iconColor: teal,
                     ),
-                    const Divider(height: 1, color: Color(0xFFE1E6E8)),
+                    Divider(height: 1, color: Theme.of(context).dividerColor),
                     _buildExpansionTile(
                       context,
                       title: 'Mengapa lokasi GPS lansia tidak akurat?',
-                      subtitle: 'Modul GPS membutuhkan waktu beberapa saat untuk mengunci satelit. Pastikan lansia berada di area terbuka atau dekat jendela untuk akurasi terbaik.',
+                      subtitle:
+                          'Modul GPS membutuhkan waktu beberapa saat untuk mengunci satelit. Pastikan lansia berada di area terbuka atau dekat jendela untuk akurasi terbaik.',
                       iconColor: teal,
                     ),
-                    const Divider(height: 1, color: Color(0xFFE1E6E8)),
+                    Divider(height: 1, color: Theme.of(context).dividerColor),
                     _buildExpansionTile(
                       context,
                       title: 'Kapan alarm darurat (SOS) akan berbunyi?',
-                      subtitle: 'Alarm akan berbunyi otomatis di ponsel pendamping jika sistem TinyML pada sandal mendeteksi akselerasi ekstrem atau perubahan orientasi yang mengindikasikan lansia terjatuh.',
+                      subtitle:
+                          'Alarm akan berbunyi otomatis di ponsel pendamping jika sistem TinyML pada sandal mendeteksi akselerasi ekstrem atau perubahan orientasi yang mengindikasikan lansia terjatuh.',
                       iconColor: teal,
                     ),
                   ],
@@ -87,12 +89,12 @@ class BantuanPage extends StatelessWidget {
 
             const SizedBox(height: 24),
 
-            const Padding(
-              padding: EdgeInsets.only(left: 4.0, bottom: 12.0),
+            Padding(
+              padding: const EdgeInsets.only(left: 4.0, bottom: 12.0),
               child: Text(
                 'HUBUNGI KAMI',
                 style: TextStyle(
-                  color: grayText,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                   fontSize: 13,
                   fontWeight: FontWeight.bold,
                   letterSpacing: 1.1,
@@ -102,9 +104,9 @@ class BantuanPage extends StatelessWidget {
 
             Container(
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: Theme.of(context).cardColor,
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: const Color(0xFFE1E6E8)),
+                border: Border.all(color: Theme.of(context).dividerColor),
               ),
               child: Column(
                 children: [
@@ -115,24 +117,32 @@ class BantuanPage extends StatelessWidget {
                         color: teal.withValues(alpha: 0.08),
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(Icons.chat_rounded, color: teal, size: 22),
+                      child:
+                          const Icon(Icons.chat_rounded, color: teal, size: 22),
                     ),
-                    title: const Text(
+                    title: Text(
                       'Chat Customer Service',
-                      style: TextStyle(fontWeight: FontWeight.bold, color: darkText, fontSize: 15),
+                      style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Theme.of(context).colorScheme.onSurface,
+                          fontSize: 15),
                     ),
-                    subtitle: const Text(
+                    subtitle: Text(
                       'Hubungi tim teknis EMERYS via WhatsApp (24/7)',
-                      style: TextStyle(color: grayText, fontSize: 13),
+                      style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          fontSize: 13),
                     ),
-                    trailing: const Icon(Icons.chevron_right, color: grayText),
+                    trailing: Icon(Icons.chevron_right,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant),
                     onTap: () {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Membuka WhatsApp Chat...')),
+                        const SnackBar(
+                            content: Text('Membuka WhatsApp Chat...')),
                       );
                     },
                   ),
-                  const Divider(height: 1, color: Color(0xFFE1E6E8)),
+                  Divider(height: 1, color: Theme.of(context).dividerColor),
                   ListTile(
                     leading: Container(
                       padding: const EdgeInsets.all(8),
@@ -140,20 +150,28 @@ class BantuanPage extends StatelessWidget {
                         color: teal.withValues(alpha: 0.08),
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(Icons.email_rounded, color: teal, size: 22),
+                      child:
+                          const Icon(Icons.email_rounded, color: teal, size: 22),
                     ),
-                    title: const Text(
+                    title: Text(
                       'Kirim Email Dukungan',
-                      style: TextStyle(fontWeight: FontWeight.bold, color: darkText, fontSize: 15),
+                      style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Theme.of(context).colorScheme.onSurface,
+                          fontSize: 15),
                     ),
-                    subtitle: const Text(
+                    subtitle: Text(
                       'support@emerys.id',
-                      style: TextStyle(color: grayText, fontSize: 13),
+                      style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          fontSize: 13),
                     ),
-                    trailing: const Icon(Icons.chevron_right, color: grayText),
+                    trailing: Icon(Icons.chevron_right,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant),
                     onTap: () {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Membuka Aplikasi Email...')),
+                        const SnackBar(
+                            content: Text('Membuka Aplikasi Email...')),
                       );
                     },
                   ),
@@ -177,9 +195,9 @@ class BantuanPage extends StatelessWidget {
       collapsedIconColor: Colors.grey,
       title: Text(
         title,
-        style: const TextStyle(
+        style: TextStyle(
           fontWeight: FontWeight.bold,
-          color: Color(0xFF1E2A35),
+          color: Theme.of(context).colorScheme.onSurface,
           fontSize: 15,
         ),
       ),
@@ -189,7 +207,7 @@ class BantuanPage extends StatelessWidget {
           child: Text(
             subtitle,
             style: TextStyle(
-              color: Colors.grey[700],
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
               fontSize: 13,
               height: 1.5,
             ),

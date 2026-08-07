@@ -6,19 +6,21 @@ class DeviceManagementPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFB),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: Theme.of(context).appBarTheme.backgroundColor ??
+            Theme.of(context).colorScheme.surface,
         elevation: 0,
         scrolledUnderElevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black, size: 24),
+          icon: Icon(Icons.arrow_back,
+              color: Theme.of(context).colorScheme.onSurface, size: 24),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
+        title: Text(
           'Manajemen Perangkat',
           style: TextStyle(
-            color: Colors.black,
+            color: Theme.of(context).colorScheme.onSurface,
             fontWeight: FontWeight.bold,
             fontSize: 18,
           ),
@@ -32,8 +34,9 @@ class DeviceManagementPage extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(16.0),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: Theme.of(context).cardColor,
                 borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: Theme.of(context).dividerColor),
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withValues(alpha: 0.03),
@@ -65,7 +68,7 @@ class DeviceManagementPage extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: 16),
-                      const Column(
+                      Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
@@ -73,15 +76,17 @@ class DeviceManagementPage extends StatelessWidget {
                             style: TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
-                              color: Colors.black,
+                              color: Theme.of(context).colorScheme.onSurface,
                             ),
                           ),
-                          SizedBox(height: 4),
+                          const SizedBox(height: 4),
                           Text(
                             'Model: ES-2024 Pro',
                             style: TextStyle(
                               fontSize: 14,
-                              color: Colors.grey,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant,
                             ),
                           ),
                         ],
@@ -89,13 +94,11 @@ class DeviceManagementPage extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 24),
-
-                  _buildStatusGrid(),
-
+                  _buildStatusGrid(context),
                   const SizedBox(height: 16),
-
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 12),
                     decoration: BoxDecoration(
                       color: const Color(0xFFE8F5E9),
                       borderRadius: BorderRadius.circular(16),
@@ -132,30 +135,28 @@ class DeviceManagementPage extends StatelessWidget {
                 ],
               ),
             ),
-
             const SizedBox(height: 24),
-
-            const Text(
+            Text(
               'Opsi Koneksi',
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
-                color: Colors.grey,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
             const SizedBox(height: 12),
-            _buildConnectionCard(),
-
+            _buildConnectionCard(context),
             const SizedBox(height: 40),
-
             _buildActionButton(
+              context,
               text: 'Sinkronisasi Ulang',
               icon: Icons.sync,
-              color: Colors.black,
+              color: Theme.of(context).colorScheme.onSurface,
               onPressed: () {},
             ),
             const SizedBox(height: 12),
             _buildActionButton(
+              context,
               text: 'Putuskan Perangkat',
               color: Colors.red,
               onPressed: () {},
@@ -168,12 +169,13 @@ class DeviceManagementPage extends StatelessWidget {
     );
   }
 
-  Widget _buildStatusGrid() {
+  Widget _buildStatusGrid(BuildContext context) {
     return Column(
       children: [
         Row(
           children: [
             _buildStatusItem(
+              context,
               icon: Icons.bluetooth,
               label: 'Koneksi',
               value: 'Bluetooth 5.0',
@@ -182,6 +184,7 @@ class DeviceManagementPage extends StatelessWidget {
             ),
             const SizedBox(width: 12),
             _buildStatusItem(
+              context,
               icon: Icons.battery_charging_full,
               label: 'Baterai',
               value: '78%',
@@ -194,6 +197,7 @@ class DeviceManagementPage extends StatelessWidget {
         Row(
           children: [
             _buildStatusItem(
+              context,
               icon: Icons.signal_cellular_alt,
               label: 'Sinyal',
               value: 'Kuat',
@@ -202,6 +206,7 @@ class DeviceManagementPage extends StatelessWidget {
             ),
             const SizedBox(width: 12),
             _buildStatusItem(
+              context,
               icon: Icons.sync,
               label: 'Sinkronisasi',
               value: 'Baru saja',
@@ -214,7 +219,8 @@ class DeviceManagementPage extends StatelessWidget {
     );
   }
 
-  Widget _buildStatusItem({
+  Widget _buildStatusItem(
+    BuildContext context, {
     required IconData icon,
     required String label,
     required String value,
@@ -225,7 +231,9 @@ class DeviceManagementPage extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: const Color(0xFFF1F5F9),
+          color: Theme.of(context).brightness == Brightness.dark
+              ? Colors.black12
+              : const Color(0xFFF1F5F9),
           borderRadius: BorderRadius.circular(16),
         ),
         child: Column(
@@ -237,17 +245,19 @@ class DeviceManagementPage extends StatelessWidget {
                 const SizedBox(width: 6),
                 Text(
                   label,
-                  style: const TextStyle(color: Colors.grey, fontSize: 12),
+                  style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      fontSize: 12),
                 ),
               ],
             ),
             const SizedBox(height: 8),
             Text(
               value,
-              style: const TextStyle(
+              style: TextStyle(
                 fontWeight: FontWeight.bold,
                 fontSize: 15,
-                color: Colors.black,
+                color: Theme.of(context).colorScheme.onSurface,
               ),
             ),
             const SizedBox(height: 2),
@@ -265,16 +275,18 @@ class DeviceManagementPage extends StatelessWidget {
     );
   }
 
-  Widget _buildConnectionCard() {
+  Widget _buildConnectionCard(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Theme.of(context).dividerColor),
       ),
       child: Column(
         children: [
           _buildConnectionRow(
+            context,
             icon: Icons.bluetooth,
             label: 'Bluetooth',
             status: 'Terhubung',
@@ -282,21 +294,25 @@ class DeviceManagementPage extends StatelessWidget {
             statusBgColor: const Color(0xFFE8F5E9),
           ),
           const SizedBox(height: 12),
-          const Divider(height: 1),
+          Divider(height: 1, color: Theme.of(context).dividerColor),
           const SizedBox(height: 12),
           _buildConnectionRow(
+            context,
             icon: Icons.wifi,
             label: 'WiFi Cadangan',
             status: 'Tidak Terhubung',
             statusColor: Colors.grey,
-            statusBgColor: const Color(0xFFF1F5F9),
+            statusBgColor: Theme.of(context).brightness == Brightness.dark
+                ? Colors.black12
+                : const Color(0xFFF1F5F9),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildConnectionRow({
+  Widget _buildConnectionRow(
+    BuildContext context, {
     required IconData icon,
     required String label,
     required String status,
@@ -310,10 +326,10 @@ class DeviceManagementPage extends StatelessWidget {
         Expanded(
           child: Text(
             label,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.bold,
-              color: Colors.black,
+              color: Theme.of(context).colorScheme.onSurface,
             ),
           ),
         ),
@@ -336,7 +352,8 @@ class DeviceManagementPage extends StatelessWidget {
     );
   }
 
-  Widget _buildActionButton({
+  Widget _buildActionButton(
+    BuildContext context, {
     required String text,
     IconData? icon,
     required Color color,
@@ -350,12 +367,14 @@ class DeviceManagementPage extends StatelessWidget {
         onPressed: onPressed,
         style: OutlinedButton.styleFrom(
           side: BorderSide(
-            color: isDestructive ? Colors.red.withValues(alpha: 0.3) : Colors.grey.withValues(alpha: 0.2),
+            color: isDestructive
+                ? Colors.red.withValues(alpha: 0.3)
+                : Theme.of(context).dividerColor,
           ),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
-          backgroundColor: Colors.white,
+          backgroundColor: Theme.of(context).cardColor,
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,

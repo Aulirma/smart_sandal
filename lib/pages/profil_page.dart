@@ -147,19 +147,21 @@ class _ProfilPageState extends State<ProfilPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[50],
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: Theme.of(context).appBarTheme.backgroundColor ??
+            Theme.of(context).colorScheme.surface,
         elevation: 0,
         scrolledUnderElevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black, size: 24),
+          icon: Icon(Icons.arrow_back,
+              color: Theme.of(context).colorScheme.onSurface, size: 24),
           onPressed: widget.onBackPressed,
         ),
-        title: const Text(
+        title: Text(
           'Profil Lansia',
           style: TextStyle(
-            color: Colors.black,
+            color: Theme.of(context).colorScheme.onSurface,
             fontWeight: FontWeight.bold,
             fontSize: 20,
           ),
@@ -196,18 +198,18 @@ class _ProfilPageState extends State<ProfilPage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(
+            Icon(
               Icons.assignment_ind_outlined,
               size: 80,
-              color: Colors.grey,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
             const SizedBox(height: 16),
-            const Text(
+            Text(
               'Belum Ada Data Lansia',
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
-                color: Colors.grey,
+                color: Theme.of(context).colorScheme.onSurface,
               ),
             ),
             const SizedBox(height: 8),
@@ -216,7 +218,7 @@ class _ProfilPageState extends State<ProfilPage> {
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 14,
-                color: Colors.grey[600],
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
             const SizedBox(height: 24),
@@ -254,8 +256,9 @@ class _ProfilPageState extends State<ProfilPage> {
             children: [
               Container(
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: Theme.of(context).cardColor,
                   borderRadius: BorderRadius.circular(24),
+                  border: Border.all(color: Theme.of(context).dividerColor),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withValues(alpha: 0.04),
@@ -275,7 +278,8 @@ class _ProfilPageState extends State<ProfilPage> {
                             width: 60,
                             height: 60,
                             decoration: BoxDecoration(
-                              color: const Color(0xFF0D8B94).withValues(alpha: 0.1),
+                              color:
+                                  const Color(0xFF0D8B94).withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(16),
                             ),
                             child: const Icon(
@@ -291,16 +295,21 @@ class _ProfilPageState extends State<ProfilPage> {
                               children: [
                                 Text(
                                   _namaController.text,
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: 17,
                                     fontWeight: FontWeight.bold,
-                                    color: Colors.black,
+                                    color:
+                                        Theme.of(context).colorScheme.onSurface,
                                   ),
                                 ),
                                 const SizedBox(height: 2),
                                 Text(
                                   'Usia: ${_usiaController.text} tahun',
-                                  style: const TextStyle(color: Colors.grey, fontSize: 13),
+                                  style: TextStyle(
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .onSurfaceVariant,
+                                      fontSize: 13),
                                 ),
                               ],
                             ),
@@ -310,13 +319,16 @@ class _ProfilPageState extends State<ProfilPage> {
                             child: Container(
                               padding: const EdgeInsets.all(8),
                               decoration: BoxDecoration(
-                                color: Colors.white,
+                                color: Theme.of(context).cardColor,
                                 shape: BoxShape.circle,
-                                border: Border.all(color: Colors.grey[200]!),
+                                border: Border.all(
+                                    color: Theme.of(context).dividerColor),
                               ),
-                              child: const Icon(
+                              child: Icon(
                                 Icons.edit_outlined,
-                                color: Colors.grey,
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onSurfaceVariant,
                                 size: 18,
                               ),
                             ),
@@ -324,12 +336,11 @@ class _ProfilPageState extends State<ProfilPage> {
                         ],
                       ),
                     ),
-                    
                     const SizedBox(height: 24),
-
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 20.0),
-                      child: _buildSectionHeader(Icons.medical_services_outlined, 'Catatan Kesehatan'),
+                      child: _buildSectionHeader(
+                          Icons.medical_services_outlined, 'Catatan Kesehatan'),
                     ),
                     const SizedBox(height: 12),
                     Padding(
@@ -338,25 +349,31 @@ class _ProfilPageState extends State<ProfilPage> {
                         width: double.infinity,
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: Colors.grey[50],
+                          color: Theme.of(context).brightness == Brightness.dark
+                              ? Colors.black12
+                              : Colors.grey[50],
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Text(
-                          _catatanController.text.isNotEmpty ? _catatanController.text : 'Tidak ada catatan kesehatan',
-                          style: const TextStyle(
-                            color: Colors.black87,
+                          _catatanController.text.isNotEmpty
+                              ? _catatanController.text
+                              : 'Tidak ada catatan kesehatan',
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.onSurface,
                             fontSize: 13,
                             height: 1.5,
                           ),
                         ),
                       ),
                     ),
-                    
-                    Divider(height: 48, thickness: 1.2, color: Colors.grey[200]),
-
+                    Divider(
+                        height: 48,
+                        thickness: 1.2,
+                        color: Theme.of(context).dividerColor),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 20.0),
-                      child: _buildSectionHeader(Icons.bluetooth, 'Perangkat Terhubung'),
+                      child: _buildSectionHeader(
+                          Icons.bluetooth, 'Perangkat Terhubung'),
                     ),
                     const SizedBox(height: 14),
                     Padding(
@@ -372,12 +389,12 @@ class _ProfilPageState extends State<ProfilPage> {
                             ),
                           ),
                           const SizedBox(width: 12),
-                          const Expanded(
+                          Expanded(
                             child: Text(
                               'EMERYS Sandal Pintar',
                               style: TextStyle(
                                 fontSize: 13,
-                                color: Colors.black87,
+                                color: Theme.of(context).colorScheme.onSurface,
                                 fontWeight: FontWeight.w500,
                               ),
                             ),
@@ -393,15 +410,17 @@ class _ProfilPageState extends State<ProfilPage> {
                         ],
                       ),
                     ),
-                    
-                    Divider(height: 48, thickness: 1.2, color: Colors.grey[200]),
-
+                    Divider(
+                        height: 48,
+                        thickness: 1.2,
+                        color: Theme.of(context).dividerColor),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 20.0),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          _buildSectionHeader(Icons.phone_android_outlined, 'Kontak Darurat'),
+                          _buildSectionHeader(
+                              Icons.phone_android_outlined, 'Kontak Darurat'),
                           GestureDetector(
                             onTap: () {},
                             child: const Text(
@@ -419,22 +438,25 @@ class _ProfilPageState extends State<ProfilPage> {
                     const SizedBox(height: 16),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 20.0),
-                      child: _buildContactItem('Sarah (Anak Perempuan)', '+62 812 3456 7890'),
+                      child: _buildContactItem(
+                          'Sarah (Anak Perempuan)', '+62 812 3456 7890'),
                     ),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 20.0),
-                      child: Divider(height: 32, thickness: 1, color: Colors.grey[200]),
+                      child: Divider(
+                          height: 32,
+                          thickness: 1,
+                          color: Theme.of(context).dividerColor),
                     ),
                     Padding(
                       padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-                      child: _buildContactItem('Dr. Rahman', '+62 811 2345 6789'),
+                      child: _buildContactItem(
+                          'Dr. Rahman', '+62 811 2345 6789'),
                     ),
                   ],
                 ),
               ),
-              
               const SizedBox(height: 32),
-
               SizedBox(
                 width: double.infinity,
                 height: 52,
@@ -478,7 +500,7 @@ class _ProfilPageState extends State<ProfilPage> {
           style: TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.bold,
-            color: Colors.grey[800],
+            color: Theme.of(context).colorScheme.onSurface,
           ),
         ),
       ],
@@ -494,21 +516,24 @@ class _ProfilPageState extends State<ProfilPage> {
             children: [
               Text(
                 name,
-                style: const TextStyle(
+                style: TextStyle(
                   fontWeight: FontWeight.w600,
                   fontSize: 15,
-                  color: Colors.black87,
+                  color: Theme.of(context).colorScheme.onSurface,
                 ),
               ),
               const SizedBox(height: 2),
               Text(
                 phone,
-                style: TextStyle(color: Colors.grey[500], fontSize: 13),
+                style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    fontSize: 13),
               ),
             ],
           ),
         ),
-        Icon(Icons.delete_outline, color: Colors.grey[300], size: 22),
+        Icon(Icons.delete_outline,
+            color: Theme.of(context).colorScheme.onSurfaceVariant, size: 22),
       ],
     );
   }

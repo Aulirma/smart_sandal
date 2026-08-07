@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 // import '../widgets/imu_live_card.dart';
 import '../widgets/imu_step_chart.dart';
-import '../widgets/ble_connection_card.dart';
 
 class PantauPage extends StatelessWidget {
   final VoidCallback? onBackPressed;
@@ -11,101 +10,104 @@ class PantauPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      child: Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 40),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Row(
-                    children: [
-                      if (onBackPressed != null)
-                        IconButton(
-                          icon: Icon(
-                            Icons.arrow_back,
-                            color: Theme.of(context).colorScheme.onSurface,
-                          ),
-                          onPressed: onBackPressed,
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(),
-                        ),
-                      if (onBackPressed != null) const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Pemantauan Langsung',
-                              style: TextStyle(
-                                fontSize: 22,
-                                fontWeight: FontWeight.bold,
-                                color: Theme.of(context).colorScheme.onSurface,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+    return Scaffold(
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      body: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 40),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Row(
+                      children: [
+                        if (onBackPressed != null)
+                          IconButton(
+                            icon: Icon(
+                              Icons.arrow_back,
+                              color: Theme.of(context).colorScheme.onSurface,
                             ),
-                            Text(
-                              'Data langsung dari sandal pintar',
-                              style: TextStyle(
-                                color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                fontSize: 13,
+                            onPressed: onBackPressed,
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                          ),
+                        if (onBackPressed != null) const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Pemantauan Langsung',
+                                style: TextStyle(
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.bold,
+                                  color: Theme.of(context).colorScheme.onSurface,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
-                            )
-                          ],
+                              Text(
+                                'Data langsung dari sandal pintar',
+                                style: TextStyle(
+                                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                  fontSize: 13,
+                                ),
+                              )
+                            ],
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-                const SizedBox(width: 12),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: AppTheme.primaryColor.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: const [
-                      Icon(Icons.circle, color: Colors.green, size: 8),
-                      SizedBox(width: 6),
-                      Text(
-                        'Langsung',
-                        style: TextStyle(
-                          color: Colors.green,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 10,
+                  const SizedBox(width: 12),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: AppTheme.primaryColor.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: const [
+                        Icon(Icons.circle, color: Colors.green, size: 8),
+                        SizedBox(width: 6),
+                        Text(
+                          'Langsung',
+                          style: TextStyle(
+                            color: Colors.green,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 10,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-            const SizedBox(height: 24),
-            // Status Card
-            _buildPantauStatusCard(context),
-            const SizedBox(height: 24),
-            // Lokasi Langsung Card
-            _buildPantauLocationCard(context),
-            const SizedBox(height: 24),
-            // Pola Langkah Card
-            _buildPantauStepPatternCard(context),
-            const SizedBox(height: 24),
-            // Intensitas Gerakan Card
-            _buildPantauIntensityCard(context),
-            const SizedBox(height: 24),
-            // Peringatan Terbaru Card
-            _buildPantauAlertsCard(context),
-            const SizedBox(height: 20),
-          ],
+                ],
+              ),
+              const SizedBox(height: 24),
+              const SizedBox(height: 24),
+              // Status Card
+              _buildPantauStatusCard(context),
+              const SizedBox(height: 24),
+              // Lokasi Langsung Card
+              _buildPantauLocationCard(context),
+              const SizedBox(height: 24),
+              // Pola Langkah Card
+              _buildPantauStepPatternCard(context),
+              const SizedBox(height: 24),
+              // Intensitas Gerakan Card
+              _buildPantauIntensityCard(context),
+              const SizedBox(height: 24),
+              // Peringatan Terbaru Card
+              _buildPantauAlertsCard(context),
+              const SizedBox(height: 20),
+            ],
+          ),
         ),
       ),
     );

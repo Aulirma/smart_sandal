@@ -20,19 +20,21 @@ class _IzinAppPageState extends State<IzinAppPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: bgColor,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: Theme.of(context).appBarTheme.backgroundColor ??
+            Theme.of(context).colorScheme.surface,
         elevation: 0,
         scrolledUnderElevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: darkText),
+          icon: Icon(Icons.arrow_back,
+              color: Theme.of(context).colorScheme.onSurface),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
+        title: Text(
           'Izin Aplikasi',
           style: TextStyle(
-            color: darkText,
+            color: Theme.of(context).colorScheme.onSurface,
             fontSize: 20,
             fontWeight: FontWeight.bold,
           ),
@@ -42,9 +44,9 @@ class _IzinAppPageState extends State<IzinAppPage> {
         padding: const EdgeInsets.all(16.0),
         child: Container(
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: Theme.of(context).cardColor,
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: const Color(0xFFE1E6E8)),
+            border: Border.all(color: Theme.of(context).dividerColor),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withValues(alpha: 0.02),
@@ -59,23 +61,28 @@ class _IzinAppPageState extends State<IzinAppPage> {
               _buildPermissionTile(
                 icon: Icons.bluetooth_rounded,
                 title: 'Koneksi Bluetooth',
-                subtitle: 'Diperlukan untuk memindai dan menghubungkan data secara real-time dengan EMERYS Smart Sandal.',
+                subtitle:
+                    'Diperlukan untuk memindai dan menghubungkan data secara real-time dengan EMERYS Smart Sandal.',
                 value: _bluetoothGranted,
                 onChanged: (val) => setState(() => _bluetoothGranted = val),
               ),
-              const Divider(height: 1, indent: 56),
+              Divider(
+                  height: 1, indent: 56, color: Theme.of(context).dividerColor),
               _buildPermissionTile(
                 icon: Icons.location_on_rounded,
                 title: 'Akses Lokasi (GPS)',
-                subtitle: 'Diperlukan untuk memantau posisi geografis lansia dan sinkronisasi titik koordinat pada peta saat darurat.',
+                subtitle:
+                    'Diperlukan untuk memantau posisi geografis lansia dan sinkronisasi titik koordinat pada peta saat darurat.',
                 value: _locationGranted,
                 onChanged: (val) => setState(() => _locationGranted = val),
               ),
-              const Divider(height: 1, indent: 56),
+              Divider(
+                  height: 1, indent: 56, color: Theme.of(context).dividerColor),
               _buildPermissionTile(
                 icon: Icons.notifications_active_rounded,
                 title: 'Notifikasi Prioritas',
-                subtitle: 'Diperlukan untuk mengirimkan suara peringatan instan (SOS) ketika sistem mendeteksi lansia jatuh.',
+                subtitle:
+                    'Diperlukan untuk mengirimkan suara peringatan instan (SOS) ketika sistem mendeteksi lansia jatuh.',
                 value: _notificationGranted,
                 onChanged: (val) => setState(() => _notificationGranted = val),
               ),
@@ -106,8 +113,8 @@ class _IzinAppPageState extends State<IzinAppPage> {
         ),
         title: Text(
           title,
-          style: const TextStyle(
-            color: darkText,
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurface,
             fontWeight: FontWeight.bold,
             fontSize: 15,
           ),
@@ -116,8 +123,8 @@ class _IzinAppPageState extends State<IzinAppPage> {
           padding: const EdgeInsets.only(top: 4.0),
           child: Text(
             subtitle,
-            style: const TextStyle(
-              color: grayText,
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
               fontSize: 12,
               height: 1.4,
             ),

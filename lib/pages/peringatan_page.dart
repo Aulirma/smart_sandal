@@ -105,18 +105,20 @@ class _PeringatanPageState extends State<PeringatanPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFB),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: Theme.of(context).appBarTheme.backgroundColor ??
+            Theme.of(context).colorScheme.surface,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black87),
+          icon: Icon(Icons.arrow_back,
+              color: Theme.of(context).colorScheme.onSurface),
           onPressed: widget.onBackPressed,
         ),
-        title: const Text(
+        title: Text(
           'Peringatan',
           style: TextStyle(
-            color: Colors.black87,
+            color: Theme.of(context).colorScheme.onSurface,
             fontWeight: FontWeight.bold,
           ),
         ),
@@ -142,19 +144,19 @@ class _PeringatanPageState extends State<PeringatanPage> {
             children: [
               _buildUrgentCard(),
               const SizedBox(height: 24),
-              const Text(
+              Text(
                 'Riwayat Peringatan',
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
-                  color: Colors.black87,
+                  color: Theme.of(context).colorScheme.onSurface,
                 ),
               ),
               const SizedBox(height: 12),
               ..._notifications.map((item) => Padding(
-                padding: const EdgeInsets.only(bottom: 12.0),
-                child: _buildNotificationItem(item),
-              )),
+                    padding: const EdgeInsets.only(bottom: 12.0),
+                    child: _buildNotificationItem(item),
+                  )),
               const SizedBox(height: 20),
             ],
           ),
@@ -206,17 +208,19 @@ class _PeringatanPageState extends State<PeringatanPage> {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: Theme.of(context).cardColor,
               borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Theme.of(context).dividerColor),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                Text(
                   'Lokasi Terakhir Diketahui',
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 14,
+                    color: Theme.of(context).colorScheme.onSurface,
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -226,18 +230,22 @@ class _PeringatanPageState extends State<PeringatanPage> {
                       height: 120,
                       width: double.infinity,
                       decoration: BoxDecoration(
-                        color: Colors.grey[200],
+                        color: Theme.of(context).brightness == Brightness.dark
+                            ? Colors.black12
+                            : Colors.grey[200],
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: const Center(
-                        child: Icon(Icons.location_on, color: Colors.green, size: 40),
+                        child: Icon(Icons.location_on,
+                            color: Colors.green, size: 40),
                       ),
                     ),
                     Positioned(
                       top: 8,
                       right: 8,
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
                           color: const Color(0xFFE8F5E9),
                           borderRadius: BorderRadius.circular(4),
@@ -255,18 +263,24 @@ class _PeringatanPageState extends State<PeringatanPage> {
                   ],
                 ),
                 const SizedBox(height: 8),
-                const Row(
+                Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Expanded(
                       child: Text(
                         'Taman Sri Muda, Shah Alam',
-                        style: TextStyle(fontSize: 12, color: Colors.black87),
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Theme.of(context).colorScheme.onSurface,
+                        ),
                       ),
                     ),
                     Text(
                       '3.0089° N, 101.5432° E',
-                      style: TextStyle(fontSize: 10, color: Colors.grey),
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
                     ),
                   ],
                 ),
@@ -320,9 +334,13 @@ class _PeringatanPageState extends State<PeringatanPage> {
         child: Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: item.isRead ? Colors.white : const Color(0xFFF0F9FF),
+            color: item.isRead
+                ? Theme.of(context).cardColor
+                : (Theme.of(context).brightness == Brightness.dark
+                    ? const Color(0xFF1E3A47)
+                    : const Color(0xFFF0F9FF)),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.grey[200]!),
+            border: Border.all(color: Theme.of(context).dividerColor),
           ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -345,10 +363,10 @@ class _PeringatanPageState extends State<PeringatanPage> {
                       children: [
                         Text(
                           item.title,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontWeight: FontWeight.bold,
                             fontSize: 15,
-                            color: Colors.black87,
+                            color: Theme.of(context).colorScheme.onSurface,
                           ),
                         ),
                         if (!item.isRead)
@@ -361,7 +379,11 @@ class _PeringatanPageState extends State<PeringatanPage> {
                             ),
                           ),
                         if (item.hasCheck)
-                          const Icon(Icons.check_circle_outline, color: Colors.grey, size: 16),
+                          Icon(Icons.check_circle_outline,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant,
+                              size: 16),
                       ],
                     ),
                     const SizedBox(height: 4),
@@ -369,7 +391,7 @@ class _PeringatanPageState extends State<PeringatanPage> {
                       item.subtitle,
                       style: TextStyle(
                         fontSize: 13,
-                        color: Colors.grey[700],
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
                     ),
                     const SizedBox(height: 6),
@@ -377,7 +399,7 @@ class _PeringatanPageState extends State<PeringatanPage> {
                       item.timeLocation,
                       style: TextStyle(
                         fontSize: 11,
-                        color: Colors.grey[500],
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
                     ),
                   ],

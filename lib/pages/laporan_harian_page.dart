@@ -6,24 +6,23 @@ class LaporanHarianPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const Color teal = Color(0xFF0D8B94);
-    const Color darkText = Color(0xFF1E2A35);
-    const Color grayText = Color(0xFF8B96A1);
-    const Color bgColor = Color(0xFFF8FAFB);
 
     return Scaffold(
-      backgroundColor: bgColor,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: Theme.of(context).appBarTheme.backgroundColor ??
+            Theme.of(context).colorScheme.surface,
         elevation: 0,
         scrolledUnderElevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: darkText),
+          icon: Icon(Icons.arrow_back,
+              color: Theme.of(context).colorScheme.onSurface),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
+        title: Text(
           'Laporan Harian',
           style: TextStyle(
-            color: darkText,
+            color: Theme.of(context).colorScheme.onSurface,
             fontSize: 18,
             fontWeight: FontWeight.bold,
           ),
@@ -37,9 +36,9 @@ class LaporanHarianPage extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: Theme.of(context).cardColor,
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: const Color(0xFFE1E6E8)),
+                border: Border.all(color: Theme.of(context).dividerColor),
               ),
               child: Column(
                 children: [
@@ -51,26 +50,29 @@ class LaporanHarianPage extends StatelessWidget {
                           color: Colors.green.withValues(alpha: 0.1),
                           shape: BoxShape.circle,
                         ),
-                        child: const Icon(Icons.check_circle_rounded, color: Colors.green, size: 28),
+                        child: const Icon(Icons.check_circle_rounded,
+                            color: Colors.green, size: 28),
                       ),
                       const SizedBox(width: 16),
-                      const Expanded(
+                      Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
                               'Status Kestabilan Langkah',
                               style: TextStyle(
-                                color: grayText,
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onSurfaceVariant,
                                 fontSize: 13,
                                 fontWeight: FontWeight.w500,
                               ),
                             ),
-                            SizedBox(height: 4),
+                            const SizedBox(height: 4),
                             Text(
                               '85% (Stabil / Risiko Jatuh Rendah)',
                               style: TextStyle(
-                                color: darkText,
+                                color: Theme.of(context).colorScheme.onSurface,
                                 fontSize: 15,
                                 fontWeight: FontWeight.bold,
                               ),
@@ -80,9 +82,10 @@ class LaporanHarianPage extends StatelessWidget {
                       ),
                     ],
                   ),
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 16.0),
-                    child: Divider(height: 1),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 16.0),
+                    child:
+                        Divider(height: 1, color: Theme.of(context).dividerColor),
                   ),
                   Row(
                     children: [
@@ -92,26 +95,29 @@ class LaporanHarianPage extends StatelessWidget {
                           color: teal.withValues(alpha: 0.1),
                           shape: BoxShape.circle,
                         ),
-                        child: const Icon(Icons.directions_walk_rounded, color: teal, size: 28),
+                        child: const Icon(Icons.directions_walk_rounded,
+                            color: teal, size: 28),
                       ),
                       const SizedBox(width: 16),
-                      const Expanded(
+                      Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
                               'Total Langkah Hari Ini',
                               style: TextStyle(
-                                color: grayText,
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onSurfaceVariant,
                                 fontSize: 13,
                                 fontWeight: FontWeight.w500,
                               ),
                             ),
-                            SizedBox(height: 4),
+                            const SizedBox(height: 4),
                             Text(
                               '2.450 Langkah',
                               style: TextStyle(
-                                color: darkText,
+                                color: Theme.of(context).colorScheme.onSurface,
                                 fontSize: 15,
                                 fontWeight: FontWeight.bold,
                               ),
@@ -127,12 +133,12 @@ class LaporanHarianPage extends StatelessWidget {
 
             const SizedBox(height: 24),
 
-            const Padding(
-              padding: EdgeInsets.only(left: 4.0, bottom: 12.0),
+            Padding(
+              padding: const EdgeInsets.only(left: 4.0, bottom: 12.0),
               child: Text(
                 'LOG RIWAYAT AKTIVITAS',
                 style: TextStyle(
-                  color: grayText,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                   fontSize: 13,
                   fontWeight: FontWeight.bold,
                   letterSpacing: 1.1,
@@ -142,31 +148,43 @@ class LaporanHarianPage extends StatelessWidget {
 
             Container(
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: Theme.of(context).cardColor,
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: const Color(0xFFE1E6E8)),
+                border: Border.all(color: Theme.of(context).dividerColor),
               ),
               child: Column(
                 children: [
                   _buildLogItem(
+                    context,
                     icon: Icons.report_problem_rounded,
                     iconColor: Colors.red,
                     title: '09:15 WIB - Terdeteksi Jatuh (Kritis)',
-                    subtitle: 'Sistem mendeteksi insiden jatuh pada lansia. Status: Teratasi oleh Pendamping.',
+                    subtitle:
+                        'Sistem mendeteksi insiden jatuh pada lansia. Status: Teratasi oleh Pendamping.',
                   ),
-                  const Divider(height: 1, indent: 70),
+                  Divider(
+                      height: 1,
+                      indent: 70,
+                      color: Theme.of(context).dividerColor),
                   _buildLogItem(
+                    context,
                     icon: Icons.trending_down_rounded,
                     iconColor: Colors.orange,
                     title: '14:30 WIB - Kestabilan Langkah Menurun',
-                    subtitle: 'Tumpuan kaki kiri dan kanan tidak seimbang dalam durasi 5 menit (Risiko Jatuh Sedang).',
+                    subtitle:
+                        'Tumpuan kaki kiri dan kanan tidak seimbang dalam durasi 5 menit (Risiko Jatuh Sedang).',
                   ),
-                  const Divider(height: 1, indent: 70),
+                  Divider(
+                      height: 1,
+                      indent: 70,
+                      color: Theme.of(context).dividerColor),
                   _buildLogItem(
+                    context,
                     icon: Icons.directions_walk_rounded,
                     iconColor: teal,
                     title: '17:00 WIB - Aktivitas Berjalan Sore',
-                    subtitle: 'Lansia melakukan aktivitas berjalan dengan pola langkah yang stabil dan normal.',
+                    subtitle:
+                        'Lansia melakukan aktivitas berjalan dengan pola langkah yang stabil dan normal.',
                   ),
                 ],
               ),
@@ -178,7 +196,8 @@ class LaporanHarianPage extends StatelessWidget {
     );
   }
 
-  Widget _buildLogItem({
+  Widget _buildLogItem(
+    BuildContext context, {
     required IconData icon,
     required Color iconColor,
     required String title,
@@ -197,9 +216,9 @@ class LaporanHarianPage extends StatelessWidget {
         ),
         title: Text(
           title,
-          style: const TextStyle(
+          style: TextStyle(
             fontWeight: FontWeight.bold,
-            color: Color(0xFF1E2A35),
+            color: Theme.of(context).colorScheme.onSurface,
             fontSize: 14,
           ),
         ),
@@ -208,7 +227,7 @@ class LaporanHarianPage extends StatelessWidget {
           child: Text(
             subtitle,
             style: TextStyle(
-              color: Colors.grey[600],
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
               fontSize: 12,
               height: 1.4,
             ),
