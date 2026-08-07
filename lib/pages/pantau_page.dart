@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
+// import '../widgets/imu_live_card.dart';
+import '../widgets/imu_step_chart.dart';
+import '../widgets/ble_connection_card.dart';
 
 class PantauPage extends StatelessWidget {
   final VoidCallback? onBackPressed;
@@ -85,6 +88,7 @@ class PantauPage extends StatelessWidget {
                 ),
               ],
             ),
+            const SizedBox(height: 24),
             const SizedBox(height: 24),
             // Status Card
             _buildPantauStatusCard(context),
@@ -377,6 +381,7 @@ class PantauPage extends StatelessWidget {
   }
 
   Widget _buildPantauStepPatternCard(BuildContext context) {
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
@@ -424,23 +429,9 @@ class PantauPage extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 24),
-          SizedBox(
+          const SizedBox(
             height: 120,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: List.generate(20, (index) {
-                final double height = (10 + (index % 5) * 15 + (index % 3) * 20).toDouble().clamp(30, 100);
-                return Container(
-                  width: 8,
-                  height: height,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF2DD4BF).withValues(alpha: index == 12 ? 1.0 : 0.4),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                );
-              }),
-            ),
+            child: ImuStepChart(),
           ),
           const SizedBox(height: 12),
           Row(
