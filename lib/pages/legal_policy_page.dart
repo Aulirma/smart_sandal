@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/app_theme.dart';
 
 class LegalPolicyPage extends StatelessWidget {
   const LegalPolicyPage({super.key});
@@ -55,15 +56,36 @@ class LegalPolicyPage extends StatelessWidget {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+        backgroundColor: Theme.of(context).cardColor,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        title: Text(
+          title,
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurface,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
         content: SingleChildScrollView(
-          child: Text(contentText),
+          child: Text(
+            contentText,
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+              height: 1.55,
+            ),
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child:
-                const Text('Tutup', style: TextStyle(color: Color(0xFF0D8B94))),
+            child: Text(
+              'Tutup',
+              style: TextStyle(
+                color: AppTheme.primaryColor,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ),
         ],
       ),
@@ -73,45 +95,83 @@ class LegalPolicyPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFB),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
+        foregroundColor: Theme.of(context).appBarTheme.foregroundColor,
         elevation: 0,
+
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black87),
+          icon: Icon(
+            Icons.arrow_back,
+            color: Theme.of(context).colorScheme.onSurface,
+          ),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
+
+        title: Text(
           'Legalitas & Privasi',
-          style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold),
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurface,
+            fontWeight: FontWeight.bold,
+          ),
         ),
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Container(
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: Theme.of(context).cardColor,
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: const Color(0xFFE1E6E8)),
+            border: Border.all(
+              color: Theme.of(context).dividerColor,
+            ),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               ListTile(
-                leading:
-                    const Icon(Icons.gavel_rounded, color: Color(0xFF0D8B94)),
-                title: const Text('Syarat & Ketentuan',
-                    style: TextStyle(fontWeight: FontWeight.bold)),
-                trailing: const Icon(Icons.chevron_right),
+                leading: const Icon(
+                  Icons.gavel_rounded,
+                  color: AppTheme.primaryColor,
+                ),
+
+                title: Text(
+                  'Syarat & Ketentuan',
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurface,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+
+                trailing: Icon(
+                  Icons.chevron_right,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
                 onTap: () => _showPolicyDialog(context, 'Syarat & Ketentuan'),
               ),
-              const Divider(height: 1),
+              Divider(
+                height: 1,
+                color: Theme.of(context).dividerColor,
+              ),
               ListTile(
-                leading: const Icon(Icons.privacy_tip_rounded,
-                    color: Color(0xFF0D8B94)),
-                title: const Text('Kebijakan Privasi',
-                    style: TextStyle(fontWeight: FontWeight.bold)),
-                trailing: const Icon(Icons.chevron_right),
+                leading: const Icon(
+                  Icons.privacy_tip_rounded,
+                  color: AppTheme.primaryColor,
+                ),
+
+                title: Text(
+                  'Kebijakan Privasi',
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurface,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+
+                trailing: Icon(
+                  Icons.chevron_right,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
                 onTap: () => _showPolicyDialog(context, 'Kebijakan Privasi'),
               ),
             ],
