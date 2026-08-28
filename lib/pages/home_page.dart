@@ -1,38 +1,445 @@
+import 'dart:async';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+
+import '../services/backend_api_service.dart';
 import '../theme/app_theme.dart';
 
-class HomePage extends StatelessWidget {
+class HomePage extends StatefulWidget {
   final VoidCallback onNotificationPressed;
-  const HomePage({super.key, required this.onNotificationPressed});
+  final VoidCallback onAddElderlyPressed;
+
+  const HomePage({
+    super.key,
+    required this.onNotificationPressed,
+    required this.onAddElderlyPressed,
+  });
+
+  @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
+  final BackendApiService _api = BackendApiService();
+
+  bool _isLoading = true;
+  bool _hasElderly = false;
+
+  String? _elderlyId;
+  String? _elderlyName;
+  int? _elderlyAge;
+  String? _deviceId;
+
+  StreamSubscription<
+      DocumentSnapshot<Map<String, dynamic>>>? _profileSubscription;
+
+  bool get _isDeviceConnected =>
+      _deviceId != null && _deviceId!.isNotEmpty;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadElderlyProfile();
+  }
+
+  @override
+  void dispose() {
+    _profileSubscription?.cancel();
+    super.dispose();
+  }
+
+  // ============================================================
+  // LOAD PROFIL DARI BACKEND
+  // ============================================================
+
+  Future<void> _loadElderlyProfile() async {
+    try {
+      final data = await _api.getMyElderlyProfile();
+
+      if (!mounted) return;
+
+      if (data['exists'] == true) {
+        final elderlyId =
+        data['elderlyId']?.toString();
+
+        setState(() {
+          _hasElderly = true;
+          _elderlyId = elderlyId;
+          _elderlyName =
+              data['name']?.toString();
+          _elderlyAge =
+              _parseAge(data['age']);
+          _deviceId =
+              _cleanDeviceId(data['deviceId']);
+        });
+
+        if (elderlyId != null &&
+            elderlyId.isNotEmpty) {
+          _listenToElderlyProfile(
+            elderlyId,
+          );
+        }
+      } else {
+        _clearElderlyData();
+      }
+    } catch (e) {
+      debugPrint(
+        '[HomePage] Gagal mengambil profil: $e',
+      );
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Gagal mengambil data lansia: $e',
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  // ============================================================
+  // FIRESTORE REALTIME
+  // ============================================================
+
+  void _listenToElderlyProfile(
+      String elderlyId,
+      ) {
+    _profileSubscription?.cancel();
+
+    debugPrint(
+      '[HomePage] Listening elderly_profiles/$elderlyId',
+    );
+
+    _profileSubscription = FirebaseFirestore
+        .instance
+        .collection('elderly_profiles')
+        .doc(elderlyId)
+        .snapshots()
+        .listen(
+          (snapshot) {
+        if (!snapshot.exists) {
+          if (!mounted) return;
+
+          setState(() {
+            _hasElderly = false;
+            _elderlyId = null;
+            _elderlyName = null;
+            _elderlyAge = null;
+            _deviceId = null;
+          });
+
+          return;
+        }
+
+        final data = snapshot.data();
+
+        if (data == null) return;
+
+        final deviceId =
+        _cleanDeviceId(data['deviceId']);
+
+        debugPrint(
+          '[HomePage] Firestore update '
+              'deviceId=$deviceId',
+        );
+
+        if (!mounted) return;
+
+        setState(() {
+          _hasElderly = true;
+          _elderlyId = snapshot.id;
+          _elderlyName =
+              data['name']?.toString();
+          _elderlyAge =
+              _parseAge(data['age']);
+          _deviceId = deviceId;
+        });
+      },
+      onError: (error) {
+        debugPrint(
+          '[HomePage] Firestore listener error: $error',
+        );
+      },
+    );
+  }
+
+  void _clearElderlyData() {
+    setState(() {
+      _hasElderly = false;
+      _elderlyId = null;
+      _elderlyName = null;
+      _elderlyAge = null;
+      _deviceId = null;
+    });
+  }
+
+  int? _parseAge(dynamic value) {
+    if (value == null) return null;
+
+    if (value is int) return value;
+
+    return int.tryParse(
+      value.toString(),
+    );
+  }
+
+  String? _cleanDeviceId(dynamic value) {
+    if (value == null) return null;
+
+    final result = value.toString().trim();
+
+    if (result.isEmpty ||
+        result == 'null') {
+      return null;
+    }
+
+    return result;
+  }
+
+  // ============================================================
+  // GREETING
+  // ============================================================
+
+  String _getGreeting() {
+    final hour = DateTime.now().hour;
+
+    if (hour >= 4 && hour < 11) {
+      return 'Selamat Pagi';
+    }
+
+    if (hour >= 11 && hour < 15) {
+      return 'Selamat Siang';
+    }
+
+    if (hour >= 15 && hour < 18) {
+      return 'Selamat Sore';
+    }
+
+    return 'Selamat Malam';
+  }
+
+  String _getWaliName() {
+    final user =
+        FirebaseAuth.instance.currentUser;
+
+    final displayName =
+    user?.displayName?.trim();
+
+    if (displayName != null &&
+        displayName.isNotEmpty) {
+      return displayName;
+    }
+
+    final email =
+    user?.email?.trim();
+
+    if (email != null &&
+        email.isNotEmpty) {
+      final name =
+          email.split('@').first;
+
+      if (name.isNotEmpty) {
+        return name;
+      }
+    }
+
+    return 'Wali';
+  }
+
+  // ============================================================
+  // BUILD
+  // ============================================================
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      body: SingleChildScrollView(
+      backgroundColor:
+      Theme.of(context).scaffoldBackgroundColor,
+
+      body: SafeArea(
+        child: _isLoading
+            ? const Center(
+          child: CircularProgressIndicator(),
+        )
+            : _buildDashboard(context),
+      ),
+    );
+  }
+
+  // ============================================================
+  // EMPTY STATE
+  // ============================================================
+
+  Widget _buildEmptyState(
+      BuildContext context,
+      ) {
+    return Center(
+      child: SingleChildScrollView(
+        padding:
+        const EdgeInsets.all(24),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment:
+          MainAxisAlignment.center,
+          children: [
+            const SizedBox(height: 40),
+
+            Container(
+              width: 100,
+              height: 100,
+              decoration: BoxDecoration(
+                color: AppTheme.primaryColor
+                    .withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.person_outline,
+                size: 52,
+                color:
+                AppTheme.primaryColor,
+              ),
+            ),
+
+            const SizedBox(height: 24),
+
+            Text(
+              'Belum Ada Profil Lansia',
+              textAlign:
+              TextAlign.center,
+              style: TextStyle(
+                fontSize: 21,
+                fontWeight:
+                FontWeight.bold,
+                color: Theme.of(context)
+                    .colorScheme
+                    .onSurface,
+              ),
+            ),
+
+            const SizedBox(height: 10),
+
+            Text(
+              'Tambahkan profil lansia terlebih dahulu '
+                  'untuk mulai menggunakan EMERYS.',
+              textAlign:
+              TextAlign.center,
+              style: TextStyle(
+                fontSize: 14,
+                height: 1.5,
+                color: Theme.of(context)
+                    .colorScheme
+                    .onSurfaceVariant,
+              ),
+            ),
+
+            const SizedBox(height: 28),
+
+            SizedBox(
+              width: 240,
+              height: 50,
+              child: ElevatedButton(
+                onPressed:
+                widget.onAddElderlyPressed,
+                style:
+                ElevatedButton.styleFrom(
+                  backgroundColor:
+                  AppTheme.primaryColor,
+                  foregroundColor:
+                  Colors.white,
+                  elevation: 0,
+                  shape:
+                  const StadiumBorder(),
+                ),
+                child: const Text(
+                  '+ Tambah Profil Lansia',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight:
+                    FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 40),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ============================================================
+  // DASHBOARD
+  // ============================================================
+
+  Widget _buildDashboard(
+      BuildContext context,
+      ) {
+    return RefreshIndicator(
+      onRefresh:
+      _loadElderlyProfile,
+      child:
+      SingleChildScrollView(
+        physics:
+        const AlwaysScrollableScrollPhysics(),
+        child: Column(
+          crossAxisAlignment:
+          CrossAxisAlignment.start,
           children: [
             _buildHeader(context),
+
             Padding(
-              padding: const EdgeInsets.all(20.0),
+              padding:
+              const EdgeInsets.all(20),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment:
+                CrossAxisAlignment.start,
                 children: [
-                  _buildLiveLocation(context),
-                  const SizedBox(height: 24),
-                  _buildMetricsRow(context),
-                  const SizedBox(height: 24),
+                  _buildLiveLocation(
+                    context,
+                  ),
+
+                  const SizedBox(
+                    height: 24,
+                  ),
+
+                  _buildMetricsRow(
+                    context,
+                  ),
+
+                  const SizedBox(
+                    height: 24,
+                  ),
+
                   Text(
                     'Aktivitas Hari Ini',
                     style: TextStyle(
                       fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Theme.of(context).colorScheme.onSurface,
+                      fontWeight:
+                      FontWeight.bold,
+                      color:
+                      Theme.of(context)
+                          .colorScheme
+                          .onSurface,
                     ),
                   ),
-                  const SizedBox(height: 16),
-                  _buildActivityTimeline(context),
+
+                  const SizedBox(
+                    height: 16,
+                  ),
+
+                  _buildActivityTimeline(
+                    context,
+                  ),
                 ],
               ),
             ),
@@ -42,69 +449,143 @@ class HomePage extends StatelessWidget {
     );
   }
 
-  Widget _buildHeader(BuildContext context) {
+  // ============================================================
+  // HEADER
+  // ============================================================
+
+  Widget _buildHeader(
+      BuildContext context,
+      ) {
     return Container(
       width: double.infinity,
-      decoration: const BoxDecoration(
+      decoration:
+      const BoxDecoration(
         gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFF0D9488), Color(0xFF0284C7)],
+          begin:
+          Alignment.topLeft,
+          end:
+          Alignment.bottomRight,
+          colors: [
+            Color(0xFF0D9488),
+            Color(0xFF0284C7),
+          ],
         ),
-        borderRadius: BorderRadius.only(
-          bottomLeft: Radius.circular(40),
-          bottomRight: Radius.circular(40),
+        borderRadius:
+        BorderRadius.only(
+          bottomLeft:
+          Radius.circular(40),
+          bottomRight:
+          Radius.circular(40),
         ),
       ),
-      padding: const EdgeInsets.fromLTRB(24, 60, 24, 40),
+      padding:
+      const EdgeInsets.fromLTRB(
+        24,
+        36,
+        24,
+        40,
+      ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment:
+        CrossAxisAlignment.start,
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            mainAxisAlignment:
+            MainAxisAlignment
+                .spaceBetween,
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: const [
-                  Text(
-                    'Selamat Pagi',
-                    style: TextStyle(color: Colors.white70, fontSize: 16),
-                  ),
-                  Text(
-                    'Dasbor Sarah',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment:
+                  CrossAxisAlignment
+                      .start,
+                  children: [
+                    const Text(
+                      'Selamat Datang 👋',
+                      style:
+                      TextStyle(
+                        color:
+                        Colors.white70,
+                        fontSize: 16,
+                      ),
                     ),
-                  ),
-                ],
+
+                    const SizedBox(
+                        height: 2),
+
+                    Text(
+                      'Dasbor ${_getWaliName()}',
+                      maxLines: 1,
+                      overflow:
+                      TextOverflow
+                          .ellipsis,
+                      style:
+                      const TextStyle(
+                        color:
+                        Colors.white,
+                        fontSize: 24,
+                        fontWeight:
+                        FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
               ),
+
               GestureDetector(
-                onTap: onNotificationPressed,
+                onTap: widget
+                    .onNotificationPressed,
                 child: Stack(
+                  clipBehavior:
+                  Clip.none,
                   children: [
                     Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.2),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(Icons.notifications_none,
-                          color: Colors.white),
-                    ),
-                    Positioned(
-                      right: 0,
-                      top: 0,
-                      child: Container(
-                        padding: const EdgeInsets.all(4),
-                        decoration: const BoxDecoration(
-                          color: Colors.red,
-                          shape: BoxShape.circle,
+                      padding:
+                      const EdgeInsets
+                          .all(8),
+                      decoration:
+                      BoxDecoration(
+                        color: Colors
+                            .white
+                            .withValues(
+                          alpha: 0.2,
                         ),
-                        child: const Text(
+                        shape:
+                        BoxShape.circle,
+                      ),
+                      child:
+                      const Icon(
+                        Icons
+                            .notifications_none,
+                        color:
+                        Colors.white,
+                      ),
+                    ),
+
+                    Positioned(
+                      right: -2,
+                      top: -2,
+                      child:
+                      Container(
+                        padding:
+                        const EdgeInsets
+                            .all(4),
+                        decoration:
+                        const BoxDecoration(
+                          color: Colors.red,
+                          shape:
+                          BoxShape.circle,
+                        ),
+                        child:
+                        const Text(
                           '3',
-                          style: TextStyle(color: Colors.white, fontSize: 10),
+                          style:
+                          TextStyle(
+                            color:
+                            Colors.white,
+                            fontSize:
+                            10,
+                          ),
                         ),
                       ),
                     ),
@@ -113,108 +594,290 @@ class HomePage extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 24),
-          // Floating Card
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: Theme.of(context).cardColor,
-              borderRadius: BorderRadius.circular(24),
+
+          const SizedBox(
+              height: 24),
+
+          _buildElderlySummaryCard(
+            context,
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ============================================================
+  // ELDERLY SUMMARY CARD
+  // ============================================================
+
+  Widget _buildElderlySummaryCard(
+      BuildContext context,
+      ) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.08),
+            blurRadius: 15,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: _hasElderly
+          ? _buildElderlyInfo(context)
+          : _buildAddElderlyContent(context),
+    );
+  }
+
+  Widget _buildElderlyInfo(
+      BuildContext context,
+      ) {
+    return Column(
+      children: [
+        Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFF2DD4BF)
+                    .withValues(alpha: 0.2),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.favorite,
+                color: Color(0xFF0D9488),
+              ),
             ),
-            child: Column(
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF2DD4BF).withValues(alpha: 0.2),
-                        shape: BoxShape.circle,
-                      ),
-                      child:
-                          const Icon(Icons.favorite, color: Color(0xFF0D9488)),
+
+            const SizedBox(width: 16),
+
+            Expanded(
+              child: Column(
+                crossAxisAlignment:
+                CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _elderlyName ?? 'Lansia',
+                    maxLines: 1,
+                    overflow:
+                    TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight:
+                      FontWeight.bold,
+                      color: Theme.of(context)
+                          .colorScheme
+                          .onSurface,
                     ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Nenek Aishah',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Theme.of(context).colorScheme.onSurface,
-                            ),
-                          ),
-                          Text(
-                            'Terakhir aktif: 5 menit lalu',
-                            style: TextStyle(
-                                color: Theme.of(context)
-                                    .colorScheme
-                                    .onSurfaceVariant,
-                                fontSize: 13),
-                          ),
-                        ],
+                  ),
+
+                  if (_elderlyAge != null)
+                    Text(
+                      'Usia $_elderlyAge tahun',
+                      style: TextStyle(
+                        color: Theme.of(context)
+                            .colorScheme
+                            .onSurfaceVariant,
+                        fontSize: 13,
                       ),
                     ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: AppTheme.primaryColor.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Container(
-                            width: 8,
-                            height: 8,
-                            decoration: const BoxDecoration(
-                              color: Color(0xFF2DD4BF),
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          const Text(
-                            'Aktif',
-                            style: TextStyle(
-                              color: Color(0xFF0D9488),
-                              fontWeight: FontWeight.bold,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
-                      ),
+
+                  const SizedBox(height: 2),
+
+                  Text(
+                    'Terakhir aktif: Belum tersedia',
+                    style: TextStyle(
+                      color: Theme.of(context)
+                          .colorScheme
+                          .onSurfaceVariant,
+                      fontSize: 13,
                     ),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                Row(
-                  children: [
-                    _buildStatusSubCard(
-                      icon: Icons.directions_walk,
-                      label: 'Stabilitas Langkah',
-                      value: 'Stabil',
-                      color: const Color(0xFF0D9488),
-                    ),
-                    const SizedBox(width: 12),
-                    _buildStatusSubCard(
-                      icon: Icons.warning_amber_rounded,
-                      label: 'Risiko Jatuh',
-                      value: 'Rendah',
-                      color: const Color(0xFF0D9488),
-                    ),
-                  ],
-                ),
-              ],
+                  ),
+                ],
+              ),
+            ),
+
+            _buildDeviceStatusBadge(context),
+          ],
+        ),
+
+        const SizedBox(height: 20),
+
+        Row(
+          children: [
+            _buildStatusSubCard(
+              icon: Icons.directions_walk,
+              label: 'Stabilitas Langkah',
+              value: 'Belum tersedia',
+              color: const Color(0xFF0D9488),
+            ),
+
+            const SizedBox(width: 12),
+
+            _buildStatusSubCard(
+              icon: Icons.warning_amber_rounded,
+              label: 'Risiko Jatuh',
+              value: 'Belum tersedia',
+              color: const Color(0xFF0D9488),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAddElderlyContent(
+      BuildContext context,
+      ) {
+    return Column(
+      children: [
+        const SizedBox(height: 4),
+
+        Icon(
+          Icons.person_add_alt_1,
+          size: 42,
+          color: const Color(0xFF0D9488)
+              .withValues(alpha: 0.8),
+        ),
+
+        const SizedBox(height: 12),
+
+        Text(
+          'Belum Ada Profil Lansia',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: Theme.of(context)
+                .colorScheme
+                .onSurface,
+          ),
+        ),
+
+        const SizedBox(height: 6),
+
+        Text(
+          'Tambahkan profil lansia untuk mulai '
+              'menggunakan EMERYS.',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 13,
+            height: 1.4,
+            color: Theme.of(context)
+                .colorScheme
+                .onSurfaceVariant,
+          ),
+        ),
+
+        const SizedBox(height: 16),
+
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            onPressed:
+            widget.onAddElderlyPressed,
+            style: ElevatedButton.styleFrom(
+              backgroundColor:
+              const Color(0xFF0D9488),
+              foregroundColor: Colors.white,
+              elevation: 0,
+              padding:
+              const EdgeInsets.symmetric(
+                vertical: 14,
+              ),
+              shape:
+              RoundedRectangleBorder(
+                borderRadius:
+                BorderRadius.circular(16),
+              ),
+            ),
+            child: const Text(
+              '+ Tambah Profil Lansia',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDeviceStatusBadge(
+      BuildContext context,
+      ) {
+    final connected =
+        _isDeviceConnected;
+
+    return Container(
+      padding:
+      const EdgeInsets.symmetric(
+        horizontal: 12,
+        vertical: 6,
+      ),
+      decoration:
+      BoxDecoration(
+        color: connected
+            ? AppTheme.primaryColor
+            .withValues(
+          alpha: 0.15,
+        )
+            : Colors.orange
+            .withValues(
+          alpha: 0.12,
+        ),
+        borderRadius:
+        BorderRadius.circular(
+          20,
+        ),
+      ),
+      child: Row(
+        mainAxisSize:
+        MainAxisSize.min,
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            decoration:
+            BoxDecoration(
+              color: connected
+                  ? const Color(
+                  0xFF2DD4BF)
+                  : Colors.orange,
+              shape:
+              BoxShape.circle,
+            ),
+          ),
+
+          const SizedBox(
+              width: 6),
+
+          Text(
+            connected
+                ? 'Aktif'
+                : 'Belum Terhubung',
+            style: TextStyle(
+              color: connected
+                  ? const Color(
+                  0xFF0D9488)
+                  : Colors.orange,
+              fontWeight:
+              FontWeight.bold,
+              fontSize: 12,
             ),
           ),
         ],
       ),
     );
   }
+
+  // ============================================================
+  // STATUS SUB CARD
+  // ============================================================
 
   Widget _buildStatusSubCard({
     required IconData icon,
@@ -224,32 +887,65 @@ class HomePage extends StatelessWidget {
   }) {
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(16),
+        padding:
+        const EdgeInsets.all(12),
+        decoration:
+        BoxDecoration(
+          color: color.withValues(
+            alpha: 0.08,
+          ),
+          borderRadius:
+          BorderRadius.circular(
+            16,
+          ),
         ),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment:
+          CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                Icon(icon, size: 16, color: color.withValues(alpha: 0.6)),
-                const SizedBox(width: 4),
-                Text(
-                  label,
-                  style: TextStyle(
-                      color: color.withValues(alpha: 0.7), fontSize: 11),
+                Icon(
+                  icon,
+                  size: 16,
+                  color: color.withValues(
+                    alpha: 0.6,
+                  ),
+                ),
+
+                const SizedBox(
+                    width: 4),
+
+                Expanded(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow:
+                    TextOverflow
+                        .ellipsis,
+                    style:
+                    TextStyle(
+                      color:
+                      color.withValues(
+                        alpha: 0.7,
+                      ),
+                      fontSize: 11,
+                    ),
+                  ),
                 ),
               ],
             ),
-            const SizedBox(height: 4),
+
+            const SizedBox(
+                height: 4),
+
             Text(
               value,
               style: TextStyle(
                 color: color,
                 fontSize: 16,
-                fontWeight: FontWeight.bold,
+                fontWeight:
+                FontWeight.bold,
               ),
             ),
           ],
@@ -258,41 +954,91 @@ class HomePage extends StatelessWidget {
     );
   }
 
-  Widget _buildLiveLocation(BuildContext context) {
+  // ============================================================
+  // LIVE LOCATION
+  // ============================================================
+
+  Widget _buildLiveLocation(
+      BuildContext context,
+      ) {
+    final hasDevice =
+        _isDeviceConnected;
+
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment:
+      CrossAxisAlignment.start,
       children: [
         Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          mainAxisAlignment:
+          MainAxisAlignment
+              .spaceBetween,
           children: [
             Row(
-              children: const [
-                Icon(Icons.location_on_outlined,
-                    color: Color(0xFF0D9488), size: 20),
-                SizedBox(width: 8),
+              children: [
+                const Icon(
+                  Icons.location_on_outlined,
+                  color:
+                  Color(0xFF0D9488),
+                  size: 20,
+                ),
+
+                const SizedBox(
+                    width: 8),
+
                 Text(
                   'Lokasi Langsung',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  style:
+                  TextStyle(
+                    fontWeight:
+                    FontWeight.bold,
+                    fontSize: 16,
+                    color: Theme.of(
+                      context,
+                    )
+                        .colorScheme
+                        .onSurface,
+                  ),
                 ),
               ],
             ),
+
             Text(
-              'Diperbarui 30 detik lalu',
-              style: TextStyle(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              hasDevice
+                  ? 'Belum tersedia'
+                  : 'Belum terhubung',
+              style:
+              TextStyle(
+                color: Theme.of(
+                  context,
+                )
+                    .colorScheme
+                    .onSurfaceVariant,
                 fontSize: 12,
               ),
-            )
+            ),
           ],
         ),
-        const SizedBox(height: 12),
+
+        const SizedBox(
+            height: 12),
+
         Container(
           height: 180,
           width: double.infinity,
-          decoration: BoxDecoration(
-            color: Theme.of(context).cardColor,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Theme.of(context).dividerColor),
+          decoration:
+          BoxDecoration(
+            color: Theme.of(
+              context,
+            ).cardColor,
+            borderRadius:
+            BorderRadius.circular(
+              20,
+            ),
+            border: Border.all(
+              color: Theme.of(
+                context,
+              ).dividerColor,
+            ),
           ),
           child: Stack(
             children: [
@@ -300,96 +1046,184 @@ class HomePage extends StatelessWidget {
                 child: Opacity(
                   opacity: 0.1,
                   child: CustomPaint(
-                    size: const Size(double.infinity, double.infinity),
-                    painter: GridPainter(),
+                    size:
+                    const Size(
+                      double.infinity,
+                      double.infinity,
+                    ),
+                    painter:
+                    GridPainter(),
                   ),
                 ),
               ),
-              const Center(
+
+              Center(
                 child: Icon(
-                  Icons.location_on,
-                  color: Color(0xFF0D9488),
+                  hasDevice
+                      ? Icons.location_on
+                      : Icons.location_off_outlined,
+                  color: hasDevice
+                      ? const Color(
+                      0xFF0D9488)
+                      : Theme.of(
+                    context,
+                  )
+                      .colorScheme
+                      .onSurfaceVariant,
                   size: 40,
                 ),
               ),
+
               Positioned(
                 top: 16,
                 right: 16,
-                child: Container(
+                child:
+                Container(
                   padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).cardColor,
-                    borderRadius: BorderRadius.circular(12),
+                  const EdgeInsets
+                      .symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
+                  decoration:
+                  BoxDecoration(
+                    color: Theme.of(
+                      context,
+                    ).cardColor,
+                    borderRadius:
+                    BorderRadius.circular(
+                      12,
+                    ),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.05),
+                        color: Colors
+                            .black
+                            .withValues(
+                          alpha: 0.05,
+                        ),
                         blurRadius: 10,
                       ),
                     ],
                   ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
+                  child:
+                  Row(
+                    mainAxisSize:
+                    MainAxisSize.min,
                     children: [
                       Container(
                         width: 6,
                         height: 6,
-                        decoration: const BoxDecoration(
-                          color: Colors.green,
-                          shape: BoxShape.circle,
+                        decoration:
+                        BoxDecoration(
+                          color: hasDevice
+                              ? Colors.green
+                              : Colors.grey,
+                          shape:
+                          BoxShape.circle,
                         ),
                       ),
-                      const SizedBox(width: 6),
-                      const Text(
-                        'LANGSUNG',
-                        style: TextStyle(
+
+                      const SizedBox(
+                          width: 6),
+
+                      Text(
+                        hasDevice
+                            ? 'MENUNGGU DATA'
+                            : 'TIDAK TERSEDIA',
+                        style:
+                        TextStyle(
                           fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.green,
+                          fontWeight:
+                          FontWeight.bold,
+                          color: hasDevice
+                              ? Colors.green
+                              : Colors.grey,
                         ),
                       ),
                     ],
                   ),
                 ),
               ),
+
               Positioned(
                 bottom: 12,
                 left: 12,
                 right: 12,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                child:
+                Row(
+                  mainAxisAlignment:
+                  MainAxisAlignment
+                      .spaceBetween,
                   children: [
                     Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      crossAxisAlignment:
+                      CrossAxisAlignment
+                          .start,
                       children: [
                         Row(
-                          children: const [
-                            Icon(Icons.near_me,
-                                size: 12, color: Color(0xFF0D9488)),
-                            SizedBox(width: 4),
+                          children: [
+                            const Icon(
+                              Icons.near_me,
+                              size: 12,
+                              color:
+                              Color(
+                                0xFF0D9488,
+                              ),
+                            ),
+
+                            const SizedBox(
+                                width: 4),
+
                             Text(
-                              'Nenek Aishah',
-                              style: TextStyle(
-                                  fontSize: 12, fontWeight: FontWeight.bold),
+                              _elderlyName ??
+                                  'Lansia',
+                              style:
+                              TextStyle(
+                                fontSize: 12,
+                                fontWeight:
+                                FontWeight
+                                    .bold,
+                                color: Theme.of(
+                                  context,
+                                )
+                                    .colorScheme
+                                    .onSurface,
+                              ),
                             ),
                           ],
                         ),
+
                         Text(
-                          'Taman Sri Muda, Shah Alam',
-                          style: TextStyle(
+                          hasDevice
+                              ? 'Lokasi belum tersedia'
+                              : 'Sandal belum terhubung',
+                          style:
+                          TextStyle(
                             fontSize: 10,
-                            color:
-                                Theme.of(context).colorScheme.onSurfaceVariant,
+                            color: Theme.of(
+                              context,
+                            )
+                                .colorScheme
+                                .onSurfaceVariant,
                           ),
                         ),
                       ],
                     ),
-                    Text('3.1390°N\n101.6869°E',
-                        textAlign: TextAlign.right,
-                        style: TextStyle(
-                          fontSize: 10,
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        )),
+
+                    Text(
+                      'Belum tersedia',
+                      textAlign:
+                      TextAlign.right,
+                      style:
+                      TextStyle(
+                        fontSize: 10,
+                        color: Theme.of(
+                          context,
+                        )
+                            .colorScheme
+                            .onSurfaceVariant,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -400,67 +1234,125 @@ class HomePage extends StatelessWidget {
     );
   }
 
-  Widget _buildMetricsRow(BuildContext context) {
+  // ============================================================
+  // METRICS
+  // ============================================================
+
+  Widget _buildMetricsRow(
+      BuildContext context,
+      ) {
     return Row(
       children: [
         _buildMetricCard(
           context,
-          icon: Icons.stacked_line_chart,
-          value: '2.340',
-          label: 'Langkah Hari Ini',
-          color: const Color(0xFF0D9488),
+          icon:
+          Icons.stacked_line_chart,
+          value:
+          'Belum tersedia',
+          label:
+          'Langkah Hari Ini',
+          color:
+          const Color(0xFF0D9488),
         ),
-        const SizedBox(width: 12),
+
+        const SizedBox(
+            width: 12),
+
         _buildMetricCard(
           context,
-          icon: Icons.battery_charging_full,
-          value: '78%',
-          label: 'Baterai',
-          color: const Color(0xFF0D9488),
+          icon:
+          Icons.battery_charging_full,
+          value:
+          'Belum tersedia',
+          label:
+          'Baterai',
+          color:
+          const Color(0xFF0D9488),
         ),
       ],
     );
   }
 
   Widget _buildMetricCard(
-    BuildContext context, {
-    required IconData icon,
-    required String value,
-    required String label,
-    required Color color,
-  }) {
+      BuildContext context, {
+        required IconData icon,
+        required String value,
+        required String label,
+        required Color color,
+      }) {
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 8),
-        decoration: BoxDecoration(
-          color: Theme.of(context).cardColor,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Theme.of(context).dividerColor),
+        padding:
+        const EdgeInsets.symmetric(
+          vertical: 20,
+          horizontal: 8,
+        ),
+        decoration:
+        BoxDecoration(
+          color: Theme.of(context)
+              .cardColor,
+          borderRadius:
+          BorderRadius.circular(
+            20,
+          ),
+          border: Border.all(
+            color: Theme.of(
+              context,
+            ).dividerColor,
+          ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.03),
+              color: Colors.black
+                  .withValues(
+                alpha: 0.03,
+              ),
               blurRadius: 10,
-              offset: const Offset(0, 4),
+              offset:
+              const Offset(0, 4),
             ),
           ],
         ),
         child: Column(
           children: [
-            Icon(icon, color: color, size: 28),
-            const SizedBox(height: 12),
-            Text(value,
-                style: TextStyle(
-                  color: Theme.of(context).colorScheme.onSurface,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                )),
-            const SizedBox(height: 4),
+            Icon(
+              icon,
+              color: color,
+              size: 28,
+            ),
+
+            const SizedBox(
+                height: 12),
+
+            Text(
+              value,
+              textAlign:
+              TextAlign.center,
+              style: TextStyle(
+                color: Theme.of(
+                  context,
+                )
+                    .colorScheme
+                    .onSurface,
+                fontSize: 15,
+                fontWeight:
+                FontWeight.bold,
+              ),
+            ),
+
+            const SizedBox(
+                height: 4),
+
             Text(
               label,
-              textAlign: TextAlign.center,
+              textAlign:
+              TextAlign.center,
               style: TextStyle(
                 fontSize: 11,
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                color: Theme.of(
+                  context,
+                )
+                    .colorScheme
+                    .onSurfaceVariant,
               ),
             ),
           ],
@@ -469,122 +1361,75 @@ class HomePage extends StatelessWidget {
     );
   }
 
-  Widget _buildActivityTimeline(BuildContext context) {
-    return Column(
-      children: [
-        _buildTimelineItem(
-          context,
-          time: '08:30',
-          title: 'Jalan pagi dimulai',
-          subtitle: 'Pola langkah stabil terdeteksi',
-          location: 'Taman Sri Muda',
-          color: Colors.green,
-          isFirst: true,
-        ),
-        _buildTimelineItem(
-          context,
-          time: '09:15',
-          title: 'Ketidakstabilan ringan terdeteksi',
-          subtitle: 'Langkah goyah sesaat — segera pulih',
-          location: 'Dekat area pasar',
-          color: Colors.orange,
-        ),
-        _buildTimelineItem(
-          context,
-          time: '10:00',
-          title: 'Jalan kaki normal dilanjutkan',
-          subtitle: 'Semua pola dalam rentang aman',
-          location: 'Sekitar rumah',
-          color: Colors.green,
-          isLast: true,
-        ),
-      ],
-    );
-  }
+  // ============================================================
+  // ACTIVITY TIMELINE
+  // ============================================================
 
-  Widget _buildTimelineItem(
-    BuildContext context, {
-    required String time,
-    required String title,
-    required String subtitle,
-    required String location,
-    required Color color,
-    bool isFirst = false,
-    bool isLast = false,
-  }) {
-    return IntrinsicHeight(
-      child: Row(
+  Widget _buildActivityTimeline(
+      BuildContext context,
+      ) {
+    return Container(
+      width: double.infinity,
+      padding:
+      const EdgeInsets.all(20),
+      decoration:
+      BoxDecoration(
+        color: Theme.of(context)
+            .cardColor,
+        borderRadius:
+        BorderRadius.circular(
+          20,
+        ),
+        border: Border.all(
+          color: Theme.of(context)
+              .dividerColor,
+        ),
+      ),
+      child: Column(
         children: [
-          Column(
-            children: [
-              Container(
-                width: 12,
-                height: 12,
-                decoration: BoxDecoration(
-                  color: color,
-                  shape: BoxShape.circle,
-                ),
-              ),
-              if (!isLast)
-                Expanded(
-                  child: Container(
-                    width: 2,
-                    color: Theme.of(context).dividerColor,
-                  ),
-                ),
-            ],
+          Icon(
+            Icons.timeline_outlined,
+            size: 42,
+            color: Theme.of(context)
+                .colorScheme
+                .onSurfaceVariant,
           ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.only(bottom: 24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(title,
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
-                            color: Theme.of(context).colorScheme.onSurface,
-                          )),
-                      Text(
-                        time,
-                        style: TextStyle(
-                            color:
-                                Theme.of(context).colorScheme.onSurfaceVariant,
-                            fontSize: 12),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    subtitle,
-                    style: TextStyle(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        fontSize: 13),
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Icon(Icons.location_on,
-                          size: 12,
-                          color:
-                              Theme.of(context).colorScheme.onSurfaceVariant),
-                      const SizedBox(width: 4),
-                      Text(
-                        location,
-                        style: TextStyle(
-                            color:
-                                Theme.of(context).colorScheme.onSurfaceVariant,
-                            fontSize: 12),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
+
+          const SizedBox(
+              height: 12),
+
+          Text(
+            'Belum tersedia',
+            style:
+            TextStyle(
+              fontSize: 14,
+              fontWeight:
+              FontWeight.bold,
+              color: Theme.of(
+                context,
+              )
+                  .colorScheme
+                  .onSurface,
+            ),
+          ),
+
+          const SizedBox(
+              height: 6),
+
+          Text(
+            'Aktivitas akan tampil setelah '
+                'sandal mengirimkan data monitoring.',
+            textAlign:
+            TextAlign.center,
+            style:
+            TextStyle(
+              fontSize: 12,
+              height: 1.4,
+              color: Theme.of(
+                context,
+              )
+                  .colorScheme
+                  .onSurfaceVariant,
             ),
           ),
         ],
@@ -593,21 +1438,51 @@ class HomePage extends StatelessWidget {
   }
 }
 
+// ================================================================
+// GRID PAINTER
+// ================================================================
+
 class GridPainter extends CustomPainter {
   @override
-  void paint(Canvas canvas, Size size) {
+  void paint(
+      Canvas canvas,
+      Size size,
+      ) {
     final paint = Paint()
-      ..color = Colors.teal.withValues(alpha: 0.1)
+      ..color = Colors.teal.withValues(
+        alpha: 0.1,
+      )
       ..strokeWidth = 1;
 
-    for (double i = 0; i <= size.width; i += 40) {
-      canvas.drawLine(Offset(i, 0), Offset(i, size.height), paint);
+    for (
+    double i = 0;
+    i <= size.width;
+    i += 40
+    ) {
+      canvas.drawLine(
+        Offset(i, 0),
+        Offset(i, size.height),
+        paint,
+      );
     }
-    for (double i = 0; i <= size.height; i += 40) {
-      canvas.drawLine(Offset(0, i), Offset(size.width, i), paint);
+
+    for (
+    double i = 0;
+    i <= size.height;
+    i += 40
+    ) {
+      canvas.drawLine(
+        Offset(0, i),
+        Offset(size.width, i),
+        paint,
+      );
     }
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(
+      covariant CustomPainter oldDelegate,
+      ) {
+    return false;
+  }
 }

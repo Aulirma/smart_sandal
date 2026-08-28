@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
-import 'bottom_navigation.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'role_gate.dart';
 import 'lupa_sandi_page.dart';
 import 'daftar_page.dart';
+import 'pairing_code_login_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -12,6 +14,8 @@ class LoginPage extends StatefulWidget {
 
 class _LoginPageState extends State<LoginPage> {
   bool _obscureText = true;
+  bool _isLoading = false;
+  String? _errorMessage;
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
@@ -20,6 +24,40 @@ class _LoginPageState extends State<LoginPage> {
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
+  }
+
+  Future<void> _handleLogin() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      await FirebaseAuth.instance.signInWithEmailAndPassword(
+        email: _emailController.text.trim(),
+        password: _passwordController.text,
+      );
+
+      if (!mounted) return;
+      // Bersihkan seluruh stack navigasi, lalu masuk lewat RoleGate.
+      // RoleGate yang akan menentukan tampilan wali atau lansia.
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (context) => const RoleGate()),
+            (route) => false,
+      );
+    } on FirebaseAuthException catch (e) {
+      setState(() {
+        _errorMessage = switch (e.code) {
+          'user-not-found' => 'Email tidak terdaftar.',
+          'wrong-password' => 'Kata sandi salah.',
+          'invalid-email' => 'Format email tidak valid.',
+          'invalid-credential' => 'Email atau kata sandi salah.',
+          _ => 'Gagal masuk. Coba lagi.',
+        };
+      });
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   @override
@@ -32,7 +70,7 @@ class _LoginPageState extends State<LoginPage> {
           children: [
             Container(
               width: double.infinity,
-              height: MediaQuery.of(context).size.height * 0.42, 
+              height: MediaQuery.of(context).size.height * 0.42,
               decoration: const BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topLeft,
@@ -87,7 +125,6 @@ class _LoginPageState extends State<LoginPage> {
                 ],
               ),
             ),
-
             Center(
               child: Container(
                 constraints: const BoxConstraints(maxWidth: 400),
@@ -114,7 +151,6 @@ class _LoginPageState extends State<LoginPage> {
                       ),
                     ),
                     const SizedBox(height: 40),
-
                     Align(
                       alignment: Alignment.centerLeft,
                       child: const Text(
@@ -139,7 +175,6 @@ class _LoginPageState extends State<LoginPage> {
                       ),
                     ),
                     const SizedBox(height: 24),
-
                     Align(
                       alignment: Alignment.centerLeft,
                       child: const Text(
@@ -175,8 +210,14 @@ class _LoginPageState extends State<LoginPage> {
                         ),
                       ),
                     ),
+                    if (_errorMessage != null) ...[
+                      const SizedBox(height: 12),
+                      Text(
+                        _errorMessage!,
+                        style: const TextStyle(color: Colors.red, fontSize: 13),
+                      ),
+                    ],
                     const SizedBox(height: 16),
-
                     Align(
                       alignment: Alignment.centerLeft,
                       child: GestureDetector(
@@ -196,23 +237,26 @@ class _LoginPageState extends State<LoginPage> {
                       ),
                     ),
                     const SizedBox(height: 40),
-
                     SizedBox(
                       width: double.infinity,
                       height: 55,
                       child: ElevatedButton(
-                        onPressed: () {
-                          Navigator.pushReplacement(
-                            context,
-                            MaterialPageRoute(builder: (context) => const BottomNavigation()),
-                          );
-                        },
+                        onPressed: _isLoading ? null : _handleLogin,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.blueAccent,
                           shape: const StadiumBorder(),
                           elevation: 0,
                         ),
-                        child: const Text(
+                        child: _isLoading
+                            ? const SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                            : const Text(
                           'Masuk',
                           style: TextStyle(
                             fontSize: 18,
@@ -222,8 +266,7 @@ class _LoginPageState extends State<LoginPage> {
                         ),
                       ),
                     ),
-                    const SizedBox(height: 32),
-
+                    const SizedBox(height: 24),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
@@ -247,6 +290,23 @@ class _LoginPageState extends State<LoginPage> {
                           ),
                         ),
                       ],
+                    ),
+                    const SizedBox(height: 12),
+                    GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const PairingCodeLoginPage()),
+                        );
+                      },
+                      child: Text(
+                        'Setup sebagai Perangkat Lansia',
+                        style: TextStyle(
+                          color: Colors.grey[600],
+                          fontWeight: FontWeight.w600,
+                          decoration: TextDecoration.underline,
+                        ),
+                      ),
                     ),
                     const SizedBox(height: 20),
                   ],

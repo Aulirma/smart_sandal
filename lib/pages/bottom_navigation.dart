@@ -19,11 +19,28 @@ class _BottomNavigationState extends State<BottomNavigation> {
   @override
   Widget build(BuildContext context) {
     final List<Widget> pages = [
-      HomePage(onNotificationPressed: () => setState(() => _currentIndex = 2)),
-      PantauPage(onBackPressed: () => setState(() => _currentIndex = 0)),
-      PeringatanPage(onBackPressed: () => setState(() => _currentIndex = 0)),
-      ProfilPage(onBackPressed: () => setState(() => _currentIndex = 0)),
-      PengaturanPage(onBackPressed: () => setState(() => _currentIndex = 0)),
+      HomePage(
+        onNotificationPressed: () =>
+            setState(() => _currentIndex = 2),
+        onAddElderlyPressed: () =>
+            setState(() => _currentIndex = 3),
+      ),
+      PantauPage(
+        onBackPressed: () =>
+            setState(() => _currentIndex = 0),
+      ),
+      PeringatanPage(
+        onBackPressed: () =>
+            setState(() => _currentIndex = 0),
+      ),
+      ProfilPage(
+        onBackPressed: () =>
+            setState(() => _currentIndex = 0),
+      ),
+      PengaturanPage(
+        onBackPressed: () =>
+            setState(() => _currentIndex = 0),
+      ),
     ];
 
     return Scaffold(

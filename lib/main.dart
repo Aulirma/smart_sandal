@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart'; // auto-generated dari `flutterfire configure`
+
 import 'pages/splash_screen.dart';
-// import 'pages/cobatok.dart';
 import 'theme/app_theme.dart';
 import 'theme/theme_controller.dart';
 
-
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
   runApp(const MyApp());
 }
 
@@ -27,6 +32,9 @@ class MyApp extends StatelessWidget {
           darkTheme: AppTheme.darkTheme,
           themeMode: themeController.themeMode,
 
+          // SplashScreen tetap tampil duluan (branding/animasi).
+          // Di dalam SplashScreen, ganti tujuan Navigator.push/pushReplacement
+          // yang lama menjadi -> const RoleGate()
           home: const SplashScreen(),
         );
       },

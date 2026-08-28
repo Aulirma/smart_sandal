@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'role_gate.dart';
 
 class DaftarPage extends StatefulWidget {
   const DaftarPage({super.key});
@@ -19,6 +22,7 @@ class _DaftarPageState extends State<DaftarPage> {
 
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
+  bool _isLoading = false;
   int? _calculatedAge;
 
   @override
@@ -89,13 +93,17 @@ class _DaftarPageState extends State<DaftarPage> {
             style: TextStyle(fontWeight: FontWeight.bold),
           ),
           content: const Text(
-            'Akun EMERYS Anda telah sukses dibuat. Silakan masuk menggunakan akun baru Anda.',
+            'Akun EMERYS Anda telah sukses dibuat.',
           ),
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.pop(context);
-                Navigator.pop(context);
+                // User sudah otomatis login setelah createUserWithEmailAndPassword,
+                // jadi langsung arahkan ke RoleGate (bersihkan stack navigasi).
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(builder: (context) => const RoleGate()),
+                      (route) => false,
+                );
               },
               child: const Text(
                 'OK',
@@ -106,6 +114,78 @@ class _DaftarPageState extends State<DaftarPage> {
         );
       },
     );
+  }
+
+  Future<void> _handleDaftar() async {
+    if (_nameController.text.isEmpty ||
+        _emailController.text.isEmpty ||
+        _phoneController.text.isEmpty ||
+        _dobController.text.isEmpty ||
+        _addressController.text.isEmpty ||
+        _passwordController.text.isEmpty ||
+        _confirmPasswordController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Semua kolom wajib diisi!")),
+      );
+      return;
+    }
+
+    if (_passwordController.text != _confirmPasswordController.text) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Kata sandi dan konfirmasi tidak sama!")),
+      );
+      return;
+    }
+
+    if (_passwordController.text.length < 6) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Kata sandi minimal 6 karakter!")),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      // 1. Buat akun di Firebase Auth
+      final credential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
+        email: _emailController.text.trim(),
+        password: _passwordController.text,
+      );
+
+      // 2. Simpan data profil + role ke Firestore
+      await FirebaseFirestore.instance.collection('users').doc(credential.user!.uid).set({
+        'role': 'wali', // <-- ini kuncinya, penentu tampilan setelah login
+        'name': _nameController.text.trim(),
+        'email': _emailController.text.trim(),
+        'phone': _phoneController.text.trim(),
+        'dob': _dobController.text.trim(),
+        'address': _addressController.text.trim(),
+        'elderlyIds': <String>[], // diisi otomatis nanti saat "Tambah Lansia Baru"
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      if (!mounted) return;
+      _showSuccessDialog(context);
+    } on FirebaseAuthException catch (e) {
+      final message = switch (e.code) {
+        'email-already-in-use' => 'Email sudah terdaftar. Silakan masuk.',
+        'invalid-email' => 'Format email tidak valid.',
+        'weak-password' => 'Kata sandi terlalu lemah.',
+        _ => 'Gagal mendaftar. Coba lagi.',
+      };
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Terjadi kesalahan: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   @override
@@ -188,7 +268,7 @@ class _DaftarPageState extends State<DaftarPage> {
                     onTap: () => _selectDate(context),
                     child: AbsorbPointer(
                       child: _buildTextField(
-                        _dobController, 
+                        _dobController,
                         "Pilih tanggal lahir Anda",
                         suffixIcon: const Icon(Icons.calendar_today, color: Colors.grey, size: 20),
                       ),
@@ -210,7 +290,7 @@ class _DaftarPageState extends State<DaftarPage> {
 
                   _buildInputLabel("Kata Sandi"),
                   _buildTextField(
-                    _passwordController, 
+                    _passwordController,
                     "Buat kata sandi Anda",
                     obscureText: _obscurePassword,
                     suffixIcon: IconButton(
@@ -222,7 +302,7 @@ class _DaftarPageState extends State<DaftarPage> {
 
                   _buildInputLabel("Konfirmasi Kata Sandi"),
                   _buildTextField(
-                    _confirmPasswordController, 
+                    _confirmPasswordController,
                     "Ulangi kata sandi Anda",
                     obscureText: _obscureConfirmPassword,
                     suffixIcon: IconButton(
@@ -236,28 +316,22 @@ class _DaftarPageState extends State<DaftarPage> {
                     width: double.infinity,
                     height: 55,
                     child: ElevatedButton(
-                      onPressed: () {
-                        if (_nameController.text.isEmpty ||
-                            _emailController.text.isEmpty ||
-                            _phoneController.text.isEmpty ||
-                            _dobController.text.isEmpty ||
-                            _addressController.text.isEmpty ||
-                            _passwordController.text.isEmpty ||
-                            _confirmPasswordController.text.isEmpty) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                                content: Text("Semua kolom wajib diisi!")),
-                          );
-                          return;
-                        }
-                        _showSuccessDialog(context);
-                      },
+                      onPressed: _isLoading ? null : _handleDaftar,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.blueAccent,
                         shape: const StadiumBorder(),
                         elevation: 0,
                       ),
-                      child: const Text(
+                      child: _isLoading
+                          ? const SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2,
+                        ),
+                      )
+                          : const Text(
                         'Daftar',
                         style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
                       ),
@@ -299,12 +373,12 @@ class _DaftarPageState extends State<DaftarPage> {
   }
 
   Widget _buildTextField(
-    TextEditingController controller, 
-    String hint, {
-    TextInputType keyboardType = TextInputType.text,
-    bool obscureText = false,
-    Widget? suffixIcon,
-  }) {
+      TextEditingController controller,
+      String hint, {
+        TextInputType keyboardType = TextInputType.text,
+        bool obscureText = false,
+        Widget? suffixIcon,
+      }) {
     return TextFormField(
       controller: controller,
       keyboardType: keyboardType,
