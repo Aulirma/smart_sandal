@@ -3,7 +3,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../services/backend_api_service.dart';
 import 'role_gate.dart';
 
-/// Ditaruh di lib/pages/pairing_code_login_page.dart
 class PairingCodeLoginPage extends StatefulWidget {
   const PairingCodeLoginPage({super.key});
 
