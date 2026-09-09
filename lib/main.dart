@@ -5,12 +5,14 @@ import 'firebase_options.dart'; // auto-generated dari `flutterfire configure`
 import 'pages/splash_screen.dart';
 import 'theme/app_theme.dart';
 import 'theme/theme_controller.dart';
+import 'services/fcm_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+  await FcmService.instance.initialize();
   runApp(const MyApp());
 }
 

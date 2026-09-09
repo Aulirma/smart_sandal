@@ -433,6 +433,116 @@ class _ProfilPageState extends State<ProfilPage> {
   // GENERATE PAIRING CODE
   // ============================================================
 
+  Future<String?> _showDeviceIdDialog() async {
+    final controller = TextEditingController();
+
+    final result = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+          ),
+          title: const Text(
+            'Hubungkan Perangkat',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Masukkan Device ID yang tertera '
+                    'pada perangkat EMERYS.',
+                style: TextStyle(
+                  fontSize: 14,
+                  height: 1.4,
+                ),
+              ),
+
+              const SizedBox(height: 16),
+
+              const Text(
+                'Device ID',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+
+              const SizedBox(height: 8),
+
+              TextField(
+                controller: controller,
+                textCapitalization:
+                TextCapitalization.characters,
+                decoration: InputDecoration(
+                  hintText: 'Contoh: EMERYS_001',
+                  border: OutlineInputBorder(
+                    borderRadius:
+                    BorderRadius.circular(12),
+                  ),
+                  focusedBorder:
+                  OutlineInputBorder(
+                    borderRadius:
+                    BorderRadius.circular(12),
+                    borderSide:
+                    const BorderSide(
+                      color: Color(0xFF0D8B94),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+              },
+              child: const Text(
+                'Batal',
+                style: TextStyle(
+                  color: Colors.grey,
+                ),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final deviceId =
+                controller.text.trim();
+
+                if (deviceId.isEmpty) {
+                  return;
+                }
+
+                Navigator.pop(
+                  dialogContext,
+                  deviceId,
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor:
+                const Color(0xFF0D8B94),
+                foregroundColor: Colors.white,
+                shape: const StadiumBorder(),
+              ),
+              child: const Text(
+                'Lanjutkan',
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    controller.dispose();
+
+    return result;
+  }
+
   Future<void> _generatePairingCode() async {
     if (!_hasData) {
       _showMessage(
@@ -448,6 +558,12 @@ class _ProfilPageState extends State<ProfilPage> {
       return;
     }
 
+    final deviceId = await _showDeviceIdDialog();
+
+    if (deviceId == null || deviceId.isEmpty) {
+      return;
+    }
+
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -460,7 +576,9 @@ class _ProfilPageState extends State<ProfilPage> {
 
     try {
       final result =
-      await _api.generateDevicePairing();
+      await _api.generateDevicePairing(
+        deviceId: deviceId,
+      );
 
       if (!mounted) return;
 

@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../services/backend_api_service.dart';
+import '../services/firestore_monitoring_service.dart';
 import '../theme/app_theme.dart';
 
 class HomePage extends StatefulWidget {
@@ -23,6 +24,189 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   final BackendApiService _api = BackendApiService();
+  final FirestoreMonitoringService _monitoringService =
+      FirestoreMonitoringService.instance;
+
+  String? _getTinyMLActivity(
+      Map<String, dynamic>? telemetry,
+      ) {
+    if (telemetry == null) {
+      return null;
+    }
+    final tinyml = telemetry['tinyml'];
+    if (tinyml is! Map) {
+      return null;
+    }
+    final activity = tinyml['activity'];
+    if (activity is! String) {
+      return null;
+    }
+    return activity.trim();
+  }
+
+  bool _isFallActivity(String? activity) {
+    return activity == 'jatuh_debel' ||
+        activity == 'jatuh_samping';
+  }
+
+  void _checkForFall(
+      Map<String, dynamic>? telemetry,
+      ) {
+    final activity = _getTinyMLActivity(telemetry);
+    if (activity == null) {
+      return;
+    }
+    debugPrint(
+      '[HomePage] TinyML activity: $activity',
+    );
+    final isFall = _isFallActivity(activity);
+    // Simpan activity terakhir
+    if (!isFall) {
+      _lastTinyMLActivity = activity;
+      return;
+    }
+    // Jangan proses kalau sedang mengirim event
+    if (_fallEventProcessing) {
+      return;
+    }
+    // Cegah satu kondisi jatuh dikirim berkali-kali
+    if (_isSameFallActivity(activity)) {
+      return;
+    }
+    // Cooldown
+    if (_isFallCooldownActive()) {
+      debugPrint(
+        '[HomePage] Fall alert masih dalam cooldown.',
+      );
+      return;
+    }
+    debugPrint(
+      '[HomePage] FALL TERDETEKSI: $activity',
+    );
+    _lastTinyMLActivity = activity;
+    _lastFallDetectedAt = DateTime.now();
+    _sendFallEvent(telemetry);
+  }
+
+  bool _isSameFallActivity(String activity) {
+    return _isFallActivity(_lastTinyMLActivity) &&
+        _lastTinyMLActivity == activity;
+  }
+
+  bool _isFallCooldownActive() {
+    if (_lastFallDetectedAt == null) {
+      return false;
+    }
+
+    final elapsed =
+    DateTime.now().difference(_lastFallDetectedAt!);
+
+    return elapsed < _fallAlertCooldown;
+  }
+
+  Future<void> _sendFallEvent(
+      Map<String, dynamic>? telemetry,
+      ) async {
+    if (telemetry == null) {
+      debugPrint(
+        '[HomePage] Fall event dibatalkan: telemetry null.',
+      );
+      return;
+    }
+
+    if (_elderlyId == null ||
+        _elderlyId!.isEmpty) {
+      debugPrint(
+        '[HomePage] Fall event dibatalkan: elderlyId tidak tersedia.',
+      );
+      return;
+    }
+
+    if (_deviceId == null ||
+        _deviceId!.isEmpty) {
+      debugPrint(
+        '[HomePage] Fall event dibatalkan: deviceId tidak tersedia.',
+      );
+      return;
+    }
+
+    _fallEventProcessing = true;
+
+    try {
+      final tinyml = telemetry['tinyml'];
+
+      String? activity;
+      double? confidence;
+
+      if (tinyml is Map) {
+        final rawActivity = tinyml['activity'];
+
+        if (rawActivity is String) {
+          activity = rawActivity.trim();
+        }
+
+        final rawConfidence = tinyml['confidence'];
+
+        if (rawConfidence is num) {
+          confidence = rawConfidence.toDouble();
+        }
+      }
+
+      debugPrint(
+        '[HomePage] Mengirim FALL EVENT',
+      );
+
+      debugPrint(
+        'activity: $activity',
+      );
+
+      debugPrint(
+        'confidence: $confidence',
+      );
+
+      debugPrint(
+        'deviceId: $_deviceId',
+      );
+
+      debugPrint(
+        'elderlyId: $_elderlyId',
+      );
+
+      final gps = telemetry['gps'];
+
+      double? latitude;
+      double? longitude;
+
+      if (gps is Map) {
+        final rawLatitude = gps['latitude'];
+        final rawLongitude = gps['longitude'];
+
+        if (rawLatitude is num) {
+          latitude = rawLatitude.toDouble();
+        }
+
+        if (rawLongitude is num) {
+          longitude = rawLongitude.toDouble();
+        }
+      }
+
+      await _api.sendFallEvent(
+        severity: 'high',
+        latitude: latitude,
+        longitude: longitude,
+      );
+
+      debugPrint(
+        '[HomePage] FALL EVENT BERHASIL DIKIRIM',
+      );
+    } catch (e) {
+      debugPrint(
+        '[HomePage] GAGAL MENGIRIM FALL EVENT: $e',
+      );
+    } finally {
+      _fallEventProcessing = false;
+    }
+  }
 
   bool _isLoading = true;
   bool _hasElderly = false;
@@ -31,12 +215,62 @@ class _HomePageState extends State<HomePage> {
   String? _elderlyName;
   int? _elderlyAge;
   String? _deviceId;
+  Map<String, dynamic>? _latestTelemetry;
+  String? _lastTinyMLActivity;
+  bool _fallEventProcessing = false;
+
+  DateTime? _lastFallDetectedAt;
+
+  static const Duration _fallAlertCooldown =
+  Duration(seconds: 30);
 
   StreamSubscription<
       DocumentSnapshot<Map<String, dynamic>>>? _profileSubscription;
 
-  bool get _isDeviceConnected =>
-      _deviceId != null && _deviceId!.isNotEmpty;
+  StreamSubscription<Map<String, dynamic>?>?
+    _telemetrySubscription;
+
+  static const Duration _deviceOfflineThreshold =
+    Duration(minutes: 2);
+
+  DateTime? _parseLastSeen(dynamic value) {
+    if (value == null) {
+      return null;
+    }
+
+    if (value is Timestamp) {
+      return value.toDate();
+    }
+
+    if (value is DateTime) {
+      return value;
+    }
+
+    if (value is String) {
+      return DateTime.tryParse(value);
+    }
+
+    return null;
+  }
+
+  bool get _isDeviceConnected {
+    if (_deviceId == null || _deviceId!.isEmpty) {
+      return false;
+    }
+
+    final lastSeen = _parseLastSeen(
+      _latestTelemetry?['lastSeen'],
+    );
+
+    if (lastSeen == null) {
+      return false;
+    }
+
+    final difference =
+    DateTime.now().difference(lastSeen);
+
+    return difference <= _deviceOfflineThreshold;
+  }
 
   @override
   void initState() {
@@ -47,6 +281,7 @@ class _HomePageState extends State<HomePage> {
   @override
   void dispose() {
     _profileSubscription?.cancel();
+    _telemetrySubscription?.cancel();
     super.dispose();
   }
 
@@ -127,19 +362,23 @@ class _HomePageState extends State<HomePage> {
         .snapshots()
         .listen(
           (snapshot) {
-        if (!snapshot.exists) {
-          if (!mounted) return;
+            if (!snapshot.exists) {
+              _telemetrySubscription?.cancel();
+              _telemetrySubscription = null;
 
-          setState(() {
-            _hasElderly = false;
-            _elderlyId = null;
-            _elderlyName = null;
-            _elderlyAge = null;
-            _deviceId = null;
-          });
+              if (!mounted) return;
 
-          return;
-        }
+              setState(() {
+                _hasElderly = false;
+                _elderlyId = null;
+                _elderlyName = null;
+                _elderlyAge = null;
+                _deviceId = null;
+                _latestTelemetry = null;
+              });
+
+              return;
+            }
 
         final data = snapshot.data();
 
@@ -155,6 +394,9 @@ class _HomePageState extends State<HomePage> {
 
         if (!mounted) return;
 
+        final deviceChanged =
+            _deviceId != deviceId;
+
         setState(() {
           _hasElderly = true;
           _elderlyId = snapshot.id;
@@ -164,6 +406,25 @@ class _HomePageState extends State<HomePage> {
               _parseAge(data['age']);
           _deviceId = deviceId;
         });
+
+        if (deviceChanged) {
+          if (deviceId != null &&
+              deviceId.isNotEmpty) {
+
+            _listenToLatestTelemetry(
+              deviceId,
+            );
+
+          } else {
+            _telemetrySubscription?.cancel();
+
+            _telemetrySubscription = null;
+
+            setState(() {
+              _latestTelemetry = null;
+            });
+          }
+        }
       },
       onError: (error) {
         debugPrint(
@@ -173,13 +434,145 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  // ============================================================
+// FIRESTORE REALTIME TELEMETRY
+// ============================================================
+
+  void _listenToLatestTelemetry(
+      String deviceId,
+      ) {
+    _telemetrySubscription?.cancel();
+
+    final cleanDeviceId = deviceId.trim();
+
+    if (cleanDeviceId.isEmpty) {
+      debugPrint(
+        '[HomePage] Tidak ada deviceId untuk monitoring.',
+      );
+
+      if (mounted) {
+        setState(() {
+          _latestTelemetry = null;
+        });
+      }
+
+      return;
+    }
+
+    debugPrint(
+      '[HomePage] Listening latest telemetry: '
+          'device_telemetry/$cleanDeviceId/latest/current',
+    );
+
+    _telemetrySubscription =
+        _monitoringService
+            .watchLatestTelemetry(cleanDeviceId)
+            .listen(
+              (data) {
+            if (!mounted) return;
+
+            if (data == null) {
+              debugPrint('[HomePage] latest/current belum tersedia.');
+
+              setState(() {
+                _latestTelemetry = null;
+              });
+
+              return;
+            }
+
+            debugPrint('[HomePage] TELEMETRY UPDATE');
+            debugPrint('deviceId: ${data['deviceId']}');
+            debugPrint('sequence: ${data['sequence']}');
+            debugPrint('status: ${data['status']}');
+            debugPrint('lastSeen: ${data['lastSeen']}');
+
+            // Cek TinyML
+            _checkForFall(data);
+
+            setState(() {
+              _latestTelemetry =
+              Map<String, dynamic>.from(data);
+            });
+
+            debugPrint(
+              '[HomePage] TELEMETRY UPDATE',
+            );
+
+            debugPrint(
+              'deviceId: ${data['deviceId']}',
+            );
+
+            debugPrint(
+              'sequence: ${data['sequence']}',
+            );
+
+            debugPrint(
+              'status: ${data['status']}',
+            );
+
+            debugPrint(
+              'lastSeen: ${data['lastSeen']}',
+            );
+
+            final lastSeen = _parseLastSeen(
+              data['lastSeen'],
+            );
+
+            if (lastSeen != null) {
+              final age =
+              DateTime.now().difference(lastSeen);
+
+              debugPrint(
+                'lastSeen age: ${age.inSeconds} detik',
+              );
+
+              debugPrint(
+                'HomePage status: '
+                    '${age <= _deviceOfflineThreshold ? 'Aktif' : 'Offline'}',
+              );
+            }
+
+            debugPrint(
+              'deviceId: ${data['deviceId']}',
+            );
+
+            debugPrint(
+              'sequence: ${data['sequence']}',
+            );
+
+            debugPrint(
+              'status: ${data['status']}',
+            );
+
+            debugPrint(
+              'lastSeen: ${data['lastSeen']}',
+            );
+
+            setState(() {
+              _latestTelemetry =
+              Map<String, dynamic>.from(data);
+            });
+          },
+          onError: (error) {
+            debugPrint(
+              '[HomePage] Telemetry listener error: $error',
+            );
+          },
+        );
+  }
+
   void _clearElderlyData() {
+    _telemetrySubscription?.cancel();
+    _telemetrySubscription = null;
+
     setState(() {
       _hasElderly = false;
       _elderlyId = null;
       _elderlyName = null;
       _elderlyAge = null;
       _deviceId = null;
+      _latestTelemetry = null;
     });
   }
 
@@ -807,66 +1200,84 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  String get _deviceStatusText {
+    if (_deviceId == null || _deviceId!.isEmpty) {
+      return 'Belum Terhubung';
+    }
+
+    final lastSeen = _parseLastSeen(
+      _latestTelemetry?['lastSeen'],
+    );
+
+    if (lastSeen == null) {
+      return 'Menunggu Data';
+    }
+
+    final difference =
+    DateTime.now().difference(lastSeen);
+
+    if (difference <= _deviceOfflineThreshold) {
+      return 'Aktif';
+    }
+
+    return 'Offline';
+  }
+
   Widget _buildDeviceStatusBadge(
       BuildContext context,
       ) {
-    final connected =
-        _isDeviceConnected;
+
+    final status = _deviceStatusText;
+
+    final Color dotColor;
+    final Color backgroundColor;
+    final Color textColor;
+
+    if (status == 'Aktif') {
+      dotColor = const Color(0xFF2DD4BF);
+      backgroundColor =
+          AppTheme.primaryColor.withValues(alpha: 0.15);
+      textColor = const Color(0xFF0D9488);
+    } else if (status == 'Offline') {
+      dotColor = Colors.red;
+      backgroundColor =
+          Colors.red.withValues(alpha: 0.10);
+      textColor = Colors.red;
+    } else {
+      dotColor = Colors.orange;
+      backgroundColor =
+          Colors.orange.withValues(alpha: 0.12);
+      textColor = Colors.orange;
+    }
 
     return Container(
-      padding:
-      const EdgeInsets.symmetric(
+      padding: const EdgeInsets.symmetric(
         horizontal: 12,
         vertical: 6,
       ),
-      decoration:
-      BoxDecoration(
-        color: connected
-            ? AppTheme.primaryColor
-            .withValues(
-          alpha: 0.15,
-        )
-            : Colors.orange
-            .withValues(
-          alpha: 0.12,
-        ),
-        borderRadius:
-        BorderRadius.circular(
-          20,
-        ),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(20),
       ),
       child: Row(
-        mainAxisSize:
-        MainAxisSize.min,
+        mainAxisSize: MainAxisSize.min,
         children: [
           Container(
             width: 8,
             height: 8,
-            decoration:
-            BoxDecoration(
-              color: connected
-                  ? const Color(
-                  0xFF2DD4BF)
-                  : Colors.orange,
-              shape:
-              BoxShape.circle,
+            decoration: BoxDecoration(
+              color: dotColor,
+              shape: BoxShape.circle,
             ),
           ),
 
-          const SizedBox(
-              width: 6),
+          const SizedBox(width: 6),
 
           Text(
-            connected
-                ? 'Aktif'
-                : 'Belum Terhubung',
+            status,
             style: TextStyle(
-              color: connected
-                  ? const Color(
-                  0xFF0D9488)
-                  : Colors.orange,
-              fontWeight:
-              FontWeight.bold,
+              color: textColor,
+              fontWeight: FontWeight.bold,
               fontSize: 12,
             ),
           ),

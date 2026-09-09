@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 // import '../widgets/imu_live_card.dart';
-import '../widgets/imu_step_chart.dart';
+// import '../widgets/imu_step_chart.dart';
 
 class PantauPage extends StatelessWidget {
   final VoidCallback? onBackPressed;
@@ -433,7 +433,7 @@ class PantauPage extends StatelessWidget {
           const SizedBox(height: 24),
           const SizedBox(
             height: 120,
-            child: ImuStepChart(),
+            // child: ImuStepChart(),
           ),
           const SizedBox(height: 12),
           Row(

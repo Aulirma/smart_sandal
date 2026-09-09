@@ -97,7 +97,9 @@ class BackendApiService {
   ///
   /// Dipanggil ketika wali memilih:
   /// Profil Lansia -> Kelola Perangkat -> Generate Kode
-  Future<Map<String, dynamic>> generateDevicePairing() async {
+  Future<Map<String, dynamic>> generateDevicePairing({
+    required String deviceId,
+  }) async {
     final token = await _getIdToken();
 
     if (token == null) {
@@ -110,6 +112,9 @@ class BackendApiService {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer $token',
       },
+      body: jsonEncode({
+        'deviceId': deviceId,
+      }),
     );
 
     final data = jsonDecode(response.body);
@@ -189,4 +194,50 @@ class BackendApiService {
       );
     }
   }
+
+  // ============================================================
+  // TELEMETRY
+  // ============================================================
+
+  /// Mengirim telemetry window dari HP Lansia ke backend.
+  ///
+  /// Data sudah dikumpulkan oleh EmerysBleService
+  /// sebanyak 50 sample sebelum method ini dipanggil.
+  Future<Map<String, dynamic>> sendTelemetry({
+    required String deviceId,
+    required Map<String, dynamic> window,
+    Map<String, dynamic>? tinyml,
+  }) async {
+    final token = await _getIdToken();
+
+    if (token == null) {
+      throw Exception('Belum login.');
+    }
+
+    final response = await http.post(
+      Uri.parse('$baseUrl/telemetry'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        'deviceId': deviceId,
+        'window': window,
+        if (tinyml != null)
+          'tinyml': tinyml,
+      }),
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode != 200) {
+      throw Exception(
+        data['detail'] ??
+            'Gagal mengirim telemetry.',
+      );
+    }
+
+    return data;
+  }
+
 }
