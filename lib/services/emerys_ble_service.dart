@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
-import 'backend_api_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
+import 'backend_api_service.dart';
 
 enum BleConnectionStatus {
   disconnected,
@@ -47,17 +47,29 @@ class EmerysBleService {
   static const int telemetryBufferSize = 50;
 
   // ESP32 saat ini mengirim BLE sekitar 10 Hz.
-  static const int telemetrySampleRate = 10;
+  static const int telemetrySampleRate = 50;
 
-  final List<Map<String, dynamic>>
-  _telemetryBuffer = [];
+  final List<Map<String, dynamic>> _telemetryBuffer = [];
+
+  // ============================================================
+  // BLE CHUNK STATE
+  // ============================================================
 
   int? _chunkSequence;
+
   int _expectedChunks = 0;
 
   final Map<int, String> _receivedChunks = {};
 
+  // ============================================================
+  // TELEMETRY UPLOAD STATE
+  // ============================================================
+
   bool _isUploadingTelemetry = false;
+
+  // ============================================================
+  // DEVICE GETTER
+  // ============================================================
 
   BluetoothDevice? get connectedDevice =>
       _device;
@@ -109,7 +121,10 @@ class EmerysBleService {
   get sensorDataStream =>
       _sensorDataController.stream;
 
+  // ============================================================
   // SCAN BLE DEVICES
+  // ============================================================
+
   Future<List<ScanResult>> scanDevices() async {
     final List<ScanResult> devices = [];
 
@@ -138,7 +153,9 @@ class EmerysBleService {
       );
 
       final adapterState =
-      await FlutterBluePlus.adapterState.first;
+      await FlutterBluePlus
+          .adapterState
+          .first;
 
       debugPrint(
         "Bluetooth state: $adapterState",
@@ -155,9 +172,7 @@ class EmerysBleService {
       subscription =
           FlutterBluePlus.scanResults.listen(
                 (results) {
-
               for (final result in results) {
-
                 final device =
                     result.device;
 
@@ -168,7 +183,8 @@ class EmerysBleService {
                     result.advertisementData.advName;
 
                 final serviceUuids =
-                    result.advertisementData.serviceUuids;
+                    result.advertisementData
+                        .serviceUuids;
 
                 final name =
                 platformName.isNotEmpty
@@ -184,6 +200,17 @@ class EmerysBleService {
                       "id=${device.remoteId}",
                 );
 
+                // ==================================================
+                // FILTER NAMA DEVICE
+                //
+                // Untuk sementara filter ini tetap dimatikan karena
+                // sebelumnya kamu memang menggunakan semua device
+                // yang ditemukan.
+                //
+                // Kalau nanti ingin membatasi hanya EMERYS Smart,
+                // bagian ini bisa diaktifkan.
+                // ==================================================
+
                 // if (name != targetDeviceName) {
                 //   continue;
                 // }
@@ -196,7 +223,6 @@ class EmerysBleService {
                 );
 
                 if (!alreadyExists) {
-
                   devices.add(result);
 
                   debugPrint(
@@ -256,9 +282,7 @@ class EmerysBleService {
       );
 
       return devices;
-
     } catch (e) {
-
       await subscription?.cancel();
 
       try {
@@ -284,9 +308,7 @@ class EmerysBleService {
   Future<bool> connectToDevice(
       BluetoothDevice device,
       ) async {
-
     try {
-
       _updateConnectionStatus(
         BleConnectionStatus.connecting,
       );
@@ -318,7 +340,6 @@ class EmerysBleService {
       if (_device != null &&
           _device!.remoteId !=
               device.remoteId) {
-
         try {
           await _device!.disconnect();
         } catch (_) {}
@@ -362,7 +383,6 @@ class EmerysBleService {
       BluetoothService? emerysService;
 
       for (final service in services) {
-
         debugPrint(
           "BLE SERVICE FOUND: "
               "${service.uuid}",
@@ -370,16 +390,12 @@ class EmerysBleService {
 
         if (service.uuid ==
             serviceUuid) {
-
-          emerysService =
-              service;
-
+          emerysService = service;
           break;
         }
       }
 
       if (emerysService == null) {
-
         debugPrint(
           "BLE ERROR: EMERYS service "
               "tidak ditemukan.",
@@ -409,7 +425,6 @@ class EmerysBleService {
 
       for (final c
       in emerysService.characteristics) {
-
         debugPrint(
           "BLE CHARACTERISTIC FOUND: "
               "${c.uuid}",
@@ -417,15 +432,12 @@ class EmerysBleService {
 
         if (c.uuid ==
             characteristicUuid) {
-
           characteristic = c;
-
           break;
         }
       }
 
       if (characteristic == null) {
-
         debugPrint(
           "BLE ERROR: EMERYS characteristic "
               "tidak ditemukan.",
@@ -480,7 +492,6 @@ class EmerysBleService {
 
       device.connectionState.listen(
             (state) {
-
           debugPrint(
             "BLE CONNECTION STATE: $state",
           );
@@ -488,10 +499,8 @@ class EmerysBleService {
           if (state ==
               BluetoothConnectionState
                   .disconnected) {
-
             if (_device?.remoteId ==
                 device.remoteId) {
-
               _device = null;
               _characteristic = null;
 
@@ -524,9 +533,7 @@ class EmerysBleService {
       );
 
       return true;
-
     } catch (e) {
-
       debugPrint(
         "BLE CONNECTION ERROR: $e",
       );
@@ -542,7 +549,10 @@ class EmerysBleService {
     }
   }
 
+  // ============================================================
   // RECEIVE BLE DATA
+  // ============================================================
+
   void _onBleDataReceived(
       List<int> value,
       ) {
@@ -571,22 +581,21 @@ class EmerysBleService {
       );
 
       _handleBleChunk(raw);
-
     } catch (e) {
-
       debugPrint(
         'BLE RX ERROR: $e',
       );
     }
   }
 
+  // ============================================================
   // HANDLE BLE JSON CHUNK
+  // ============================================================
+
   void _handleBleChunk(
       String packet,
       ) {
-
     if (!packet.startsWith('@')) {
-
       debugPrint(
         'BLE PACKET DIABAIKAN: '
             'bukan chunk protocol.',
@@ -594,6 +603,18 @@ class EmerysBleService {
 
       return;
     }
+
+    // ----------------------------------------------------------
+    // Cari posisi ":" pada header
+    //
+    // Format:
+    //
+    // @sequence:chunkIndex:totalChunks:payload
+    //
+    // Contoh:
+    //
+    // @88:0:3:{"deviceId":"EMERYS_002",...}
+    // ----------------------------------------------------------
 
     final firstColon =
     packet.indexOf(':');
@@ -616,9 +637,15 @@ class EmerysBleService {
       debugPrint(
         'BLE CHUNK HEADER TIDAK VALID:',
       );
+
       debugPrint(packet);
+
       return;
     }
+
+    // ----------------------------------------------------------
+    // Ambil metadata chunk
+    // ----------------------------------------------------------
 
     final sequenceText =
     packet.substring(
@@ -664,31 +691,47 @@ class EmerysBleService {
       debugPrint(
         'BLE CHUNK METADATA INVALID:',
       );
+
       debugPrint(packet);
+
       return;
     }
+
     if (totalChunks <= 0 ||
         chunkIndex < 0 ||
         chunkIndex >= totalChunks) {
       debugPrint(
         'BLE CHUNK INDEX INVALID:',
       );
+
       debugPrint(packet);
+
       return;
     }
 
+    // ----------------------------------------------------------
+    // Kalau sequence baru
+    // ----------------------------------------------------------
+
     if (_chunkSequence != sequence) {
-      _chunkSequence =
-          sequence;
+      _chunkSequence = sequence;
+
       _expectedChunks =
           totalChunks;
+
       _receivedChunks.clear();
+
       debugPrint(
         'BLE CHUNK START: '
             'sequence=$sequence '
             'total=$totalChunks',
       );
     }
+
+    // ----------------------------------------------------------
+    // Pastikan jumlah chunk konsisten
+    // ----------------------------------------------------------
+
     if (_expectedChunks !=
         totalChunks) {
       debugPrint(
@@ -699,6 +742,11 @@ class EmerysBleService {
 
       return;
     }
+
+    // ----------------------------------------------------------
+    // Simpan chunk
+    // ----------------------------------------------------------
+
     _receivedChunks[
     chunkIndex] = payload;
 
@@ -708,79 +756,208 @@ class EmerysBleService {
           'sequence=$sequence',
     );
 
+    // ----------------------------------------------------------
+    // Belum lengkap
+    // ----------------------------------------------------------
+
     if (_receivedChunks.length <
         _expectedChunks) {
-
       return;
     }
+
+    // ----------------------------------------------------------
+    // Gabungkan semua chunk
+    // ----------------------------------------------------------
+
     final buffer =
     StringBuffer();
+
     for (
     int i = 0;
     i < _expectedChunks;
     i++
     ) {
-
       final chunk =
       _receivedChunks[i];
+
       if (chunk == null) {
         debugPrint(
           'BLE CHUNK MISSING: $i',
         );
+
         return;
       }
-      buffer.write(
-        chunk,
-      );
+
+      buffer.write(chunk);
     }
+
     final completeJson =
     buffer.toString();
+
     debugPrint(
       '================================',
     );
+
     debugPrint(
       'BLE JSON REASSEMBLED',
     );
+
     debugPrint(
       completeJson,
     );
+
     debugPrint(
       '================================',
     );
+
+    // ----------------------------------------------------------
     // Reset chunk state
+    // ----------------------------------------------------------
+
     _receivedChunks.clear();
+
     _chunkSequence = null;
+
     _expectedChunks = 0;
+
+    // ----------------------------------------------------------
+    // Parse JSON lengkap
+    // ----------------------------------------------------------
+
     _handleCompleteJson(
       completeJson,
     );
   }
 
-// HANDLE COMPLETE JSON
+  // ============================================================
+  // HANDLE COMPLETE JSON
+  // ============================================================
+
   void _handleCompleteJson(
       String raw,
       ) {
     try {
-      final decoded =
+      final decodedRaw =
       jsonDecode(raw);
+
+      if (decodedRaw
+      is! Map<String, dynamic>) {
+        debugPrint(
+          'BLE JSON ERROR: '
+              'format bukan object.',
+        );
+
+        return;
+      }
+
+      // ========================================================
+      // Salin menjadi Map mutable
+      // ========================================================
+
+      final decoded =
+      Map<String, dynamic>.from(
+        decodedRaw,
+      );
+
+      // ========================================================
+      // NORMALISASI TINYML
+      //
+      // ESP32 mengirim:
+      //
+      // "kondisi": "jalan"
+      // "confidence": 0.950
+      //
+      // atau:
+      //
+      // "kondisi": "jatuh_debel"
+      // "confidence": 0.932
+      //
+      // Flutter akan membuat struktur internal:
+      //
+      // "tinyml": {
+      //   "activity": "jatuh_debel",
+      //   "confidence": 0.932,
+      //   "modelVersion": "tinyml-v1"
+      // }
+      //
+      // Data "kondisi" asli tetap dipertahankan.
+      // ========================================================
+
+      final kondisi =
+      decoded['kondisi']
+          ?.toString()
+          .trim();
+
+      final rawConfidence =
+      decoded['confidence'];
+
+      if (kondisi != null &&
+          kondisi.isNotEmpty) {
+        decoded['tinyml'] = {
+          'activity': kondisi,
+          'confidence':
+          rawConfidence is num
+              ? rawConfidence
+              .toDouble()
+              : 0.0,
+          'modelVersion':
+          'tinyml-v1',
+        };
+      }
+
+      // ========================================================
+      // DEBUG
+      // ========================================================
 
       debugPrint(
         'BLE RX JSON BERHASIL',
       );
 
       debugPrint(
-        'deviceId: ${decoded['deviceId']}',
+        'deviceId: '
+            '${decoded['deviceId']}',
       );
 
       debugPrint(
-        'sequence: ${decoded['sequence']}',
+        'sequence: '
+            '${decoded['sequence']}',
       );
-      if (!_sensorDataController.isClosed) {
+
+      debugPrint(
+        'TinyML kondisi: '
+            '${decoded['kondisi']}',
+      );
+
+      final tinyml =
+      decoded['tinyml'];
+
+      if (tinyml is Map) {
+        debugPrint(
+          'TinyML activity: '
+              '${tinyml['activity']}',
+        );
+
+        debugPrint(
+          'TinyML confidence: '
+              '${tinyml['confidence']}',
+        );
+      }
+
+      // ========================================================
+      // SENSOR DATA STREAM
+      // ========================================================
+
+      if (!_sensorDataController
+          .isClosed) {
         _sensorDataController.add(
           decoded,
         );
       }
-      // Masukkan ke telemetry buffer
+
+      // ========================================================
+      // TELEMETRY BUFFER
+      // ========================================================
+
       _addTelemetrySample(
         decoded,
       );
@@ -788,24 +965,28 @@ class EmerysBleService {
       debugPrint(
         'BLE JSON PARSE ERROR: $e',
       );
+
       debugPrint(
         'RAW COMPLETE JSON:',
       );
+
       debugPrint(raw);
     }
   }
 
+  // ============================================================
   // ADD SAMPLE TO TELEMETRY BUFFER
+  // ============================================================
+
   void _addTelemetrySample(
       Map<String, dynamic> sample,
       ) {
-
     final deviceId =
-    sample['deviceId']?.toString();
+    sample['deviceId']
+        ?.toString();
 
     if (deviceId == null ||
         deviceId.isEmpty) {
-
       debugPrint(
         'TELEMETRY BUFFER: '
             'deviceId tidak ditemukan.',
@@ -830,7 +1011,6 @@ class EmerysBleService {
 
     if (_telemetryBuffer.length >=
         telemetryBufferSize) {
-
       _uploadTelemetryWindow();
     }
   }
@@ -841,39 +1021,39 @@ class EmerysBleService {
 
   Map<String, dynamic>
   _buildTelemetryWindow(
-      List<Map<String, dynamic>> samples,
+      List<Map<String, dynamic>>
+      samples,
       ) {
-
     final first =
         samples.first;
 
     final last =
         samples.last;
 
-    // ----------------------------------------------------------
-    // Helper untuk mengambil array channel sensor
-    // ----------------------------------------------------------
+    // ==========================================================
+    // HELPER UNTUK MENGAMBIL ARRAY CHANNEL SENSOR
+    // ==========================================================
 
     List<dynamic> getChannel(
         String sensor,
         String side,
         String field,
         ) {
-
       return samples.map(
             (sample) {
-
           final sensorData =
           sample[sensor];
 
-          if (sensorData is! Map) {
+          if (sensorData
+          is! Map) {
             return null;
           }
 
           final sideData =
           sensorData[side];
 
-          if (sideData is! Map) {
+          if (sideData
+          is! Map) {
             return null;
           }
 
@@ -882,9 +1062,9 @@ class EmerysBleService {
       ).toList();
     }
 
-    // ----------------------------------------------------------
+    // ==========================================================
     // IMU LEFT
-    // ----------------------------------------------------------
+    // ==========================================================
 
     final imuLeft = {
       'ax': getChannel(
@@ -892,31 +1072,26 @@ class EmerysBleService {
         'left',
         'ax',
       ),
-
       'ay': getChannel(
         'imu',
         'left',
         'ay',
       ),
-
       'az': getChannel(
         'imu',
         'left',
         'az',
       ),
-
       'gx': getChannel(
         'imu',
         'left',
         'gx',
       ),
-
       'gy': getChannel(
         'imu',
         'left',
         'gy',
       ),
-
       'gz': getChannel(
         'imu',
         'left',
@@ -924,9 +1099,9 @@ class EmerysBleService {
       ),
     };
 
-    // ----------------------------------------------------------
+    // ==========================================================
     // IMU RIGHT
-    // ----------------------------------------------------------
+    // ==========================================================
 
     final imuRight = {
       'ax': getChannel(
@@ -934,31 +1109,26 @@ class EmerysBleService {
         'right',
         'ax',
       ),
-
       'ay': getChannel(
         'imu',
         'right',
         'ay',
       ),
-
       'az': getChannel(
         'imu',
         'right',
         'az',
       ),
-
       'gx': getChannel(
         'imu',
         'right',
         'gx',
       ),
-
       'gy': getChannel(
         'imu',
         'right',
         'gy',
       ),
-
       'gz': getChannel(
         'imu',
         'right',
@@ -966,9 +1136,9 @@ class EmerysBleService {
       ),
     };
 
-    // ----------------------------------------------------------
+    // ==========================================================
     // FSR LEFT
-    // ----------------------------------------------------------
+    // ==========================================================
 
     final fsrLeft = {
       'rfront': getChannel(
@@ -976,19 +1146,16 @@ class EmerysBleService {
         'left',
         'rfront',
       ),
-
       'rback': getChannel(
         'fsr',
         'left',
         'rback',
       ),
-
       'lfront': getChannel(
         'fsr',
         'left',
         'lfront',
       ),
-
       'lback': getChannel(
         'fsr',
         'left',
@@ -996,9 +1163,9 @@ class EmerysBleService {
       ),
     };
 
-    // ----------------------------------------------------------
+    // ==========================================================
     // FSR RIGHT
-    // ----------------------------------------------------------
+    // ==========================================================
 
     final fsrRight = {
       'rfront': getChannel(
@@ -1006,19 +1173,16 @@ class EmerysBleService {
         'right',
         'rfront',
       ),
-
       'rback': getChannel(
         'fsr',
         'right',
         'rback',
       ),
-
       'lfront': getChannel(
         'fsr',
         'right',
         'lfront',
       ),
-
       'lback': getChannel(
         'fsr',
         'right',
@@ -1026,22 +1190,22 @@ class EmerysBleService {
       ),
     };
 
-    // ----------------------------------------------------------
+    // ==========================================================
     // GPS
     //
-    // Karena database hanya menyimpan satu koordinat final,
-    // gunakan GPS terakhir yang tersedia dalam window.
-    // ----------------------------------------------------------
+    // Database hanya menyimpan satu koordinat final.
+    // Gunakan GPS terakhir yang tersedia.
+    // ==========================================================
 
-    Map<String, dynamic>? latestGps;
+    Map<String, dynamic>?
+    latestGps;
 
-    for (final sample in samples.reversed) {
-
+    for (final sample
+    in samples.reversed) {
       final gps =
       sample['gps'];
 
       if (gps is Map) {
-
         final latitude =
         gps['latitude'];
 
@@ -1050,7 +1214,6 @@ class EmerysBleService {
 
         if (latitude != null &&
             longitude != null) {
-
           latestGps = {
             'latitude': latitude,
             'longitude': longitude,
@@ -1061,21 +1224,21 @@ class EmerysBleService {
       }
     }
 
-    // ----------------------------------------------------------
+    // ==========================================================
     // BATTERY
     //
-    // Ambil battery terakhir jika nanti sudah tersedia.
-    // ----------------------------------------------------------
+    // Ambil battery terakhir yang tersedia.
+    // ==========================================================
 
-    Map<String, dynamic>? latestBattery;
+    Map<String, dynamic>?
+    latestBattery;
 
-    for (final sample in samples.reversed) {
-
+    for (final sample
+    in samples.reversed) {
       final battery =
       sample['battery'];
 
       if (battery is Map) {
-
         latestBattery = {
           'left': battery['left'],
           'right': battery['right'],
@@ -1085,14 +1248,16 @@ class EmerysBleService {
       }
     }
 
-    // ----------------------------------------------------------
+    // ==========================================================
     // WINDOW
-    // ----------------------------------------------------------
+    // ==========================================================
 
     return {
-      'sampleRate': telemetrySampleRate,
+      'sampleRate':
+      telemetrySampleRate,
 
-      'sampleCount': samples.length,
+      'sampleCount':
+      samples.length,
 
       'startTimestamp':
       first['timestamp'],
@@ -1118,7 +1283,8 @@ class EmerysBleService {
 
       'gps': latestGps,
 
-      'battery': latestBattery,
+      'battery':
+      latestBattery,
     };
   }
 
@@ -1128,25 +1294,18 @@ class EmerysBleService {
 
   Map<String, dynamic>?
   _getLatestTinyML(
-      List<Map<String, dynamic>> samples,
+      List<Map<String, dynamic>>
+      samples,
       ) {
-
-    for (final sample in samples.reversed) {
-
+    for (final sample
+    in samples.reversed) {
       final tinyml =
       sample['tinyml'];
 
       if (tinyml is Map) {
-
         return {
           'activity':
           tinyml['activity'],
-
-          'stability':
-          tinyml['stability'],
-
-          'fallRisk':
-          tinyml['fallRisk'],
 
           'confidence':
           tinyml['confidence'],
@@ -1166,8 +1325,10 @@ class EmerysBleService {
 
   Future<void>
   _uploadTelemetryWindow() async {
-
+    // ----------------------------------------------------------
     // Jangan melakukan upload ganda
+    // ----------------------------------------------------------
+
     if (_isUploadingTelemetry) {
       return;
     }
@@ -1188,7 +1349,10 @@ class EmerysBleService {
       ),
     );
 
+    // ----------------------------------------------------------
     // Hapus 50 sample yang akan dikirim
+    // ----------------------------------------------------------
+
     _telemetryBuffer.removeRange(
       0,
       telemetryBufferSize,
@@ -1197,16 +1361,15 @@ class EmerysBleService {
     _isUploadingTelemetry = true;
 
     try {
-
       final first =
           samples.first;
 
       final deviceId =
-      first['deviceId']?.toString();
+      first['deviceId']
+          ?.toString();
 
       if (deviceId == null ||
           deviceId.isEmpty) {
-
         throw Exception(
           'deviceId tidak ditemukan '
               'pada telemetry window.',
@@ -1254,6 +1417,18 @@ class EmerysBleService {
             '${samples.last['sequence']}',
       );
 
+      if (tinyml != null) {
+        debugPrint(
+          'TinyML activity: '
+              '${tinyml['activity']}',
+        );
+
+        debugPrint(
+          'TinyML confidence: '
+              '${tinyml['confidence']}',
+        );
+      }
+
       // --------------------------------------------------------
       // POST BACKEND
       // --------------------------------------------------------
@@ -1278,23 +1453,19 @@ class EmerysBleService {
       debugPrint(
         '================================',
       );
-
     } catch (e) {
-
       debugPrint(
         'TELEMETRY UPLOAD ERROR: $e',
       );
 
       // --------------------------------------------------------
       // Untuk tahap testing:
-      // jangan memasukkan kembali sample ke buffer.
+      // sample tidak dimasukkan kembali.
       //
-      // Nanti kalau pipeline sudah stabil, kita bisa tambahkan
-      // retry mechanism.
+      // Nanti kalau pipeline sudah stabil,
+      // bisa ditambahkan retry mechanism.
       // --------------------------------------------------------
-
     } finally {
-
       _isUploadingTelemetry = false;
     }
   }
@@ -1304,11 +1475,8 @@ class EmerysBleService {
   // ============================================================
 
   Future<void> disconnect() async {
-
     try {
-
       if (_device != null) {
-
         debugPrint(
           "Disconnecting "
               "${_device!.platformName}",
@@ -1316,20 +1484,24 @@ class EmerysBleService {
 
         await _device!.disconnect();
       }
-
     } catch (e) {
-
       debugPrint(
         "BLE DISCONNECT ERROR: $e",
       );
     }
 
     _device = null;
+
     _characteristic = null;
+
     _telemetryBuffer.clear();
+
     _isUploadingTelemetry = false;
+
     _chunkSequence = null;
+
     _expectedChunks = 0;
+
     _receivedChunks.clear();
 
     _updateConnectionStatus(
@@ -1342,7 +1514,6 @@ class EmerysBleService {
   // ============================================================
 
   void dispose() {
-
     _statusController.close();
 
     _sensorDataController.close();
