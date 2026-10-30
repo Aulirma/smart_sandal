@@ -41,12 +41,6 @@ class _LoginPageState extends State<LoginPage> {
 
       if (!mounted) return;
 
-      debugPrint('[EMERYS TEST] LOGIN SUCCESS');
-      
-      // EMERGENCY FALL ALARM TRIGGER (IMMEDIATE)
-      debugPrint('[EMERYS TEST] Calling triggerEmergencyFallAlarm()');
-      await FcmService.instance.triggerEmergencyFallAlarm();
-
       // Bersihkan seluruh stack navigasi, lalu masuk lewat RoleGate.
       // RoleGate yang akan menentukan tampilan wali atau lansia.
       Navigator.of(context).pushAndRemoveUntil(

@@ -68,6 +68,24 @@ class EmerysBleService {
 
   bool _isUploadingTelemetry = false;
 
+// ============================================================
+// FALL DETECTION
+// ============================================================
+
+// Jatuh harus terdeteksi beberapa sample berturut-turut.
+  static const int fallConfirmationSamples = 3;
+
+// Confidence minimum untuk kandidat jatuh.
+  static const double fallConfidenceThreshold = 0.50;
+
+// Menghitung berapa sample jatuh yang terdeteksi berturut-turut.
+  int _consecutiveFallSamples = 0;
+
+  Map<String, dynamic>? _pendingFallEvent;
+
+// Mencegah satu episode jatuh mengirim event berkali-kali.
+  bool _fallEventActive = false;
+
   // ============================================================
   // DEVICE GETTER
   // ============================================================
@@ -108,6 +126,80 @@ class EmerysBleService {
     debugPrint(
       'BLE STATUS: $status',
     );
+  }
+
+  Future<bool> _handleFallEvent(
+      Map<String, dynamic> decoded,
+      ) async {
+    if (_fallEventActive) {
+      debugPrint(
+        'FALL EVENT: '
+            'jatuh masih aktif, event diabaikan.',
+      );
+      return false;
+    }
+
+    _fallEventActive = true;
+
+    debugPrint(
+      '================================',
+    );
+
+    debugPrint(
+      '🚨 FALL EVENT TERDETEKSI',
+    );
+
+    debugPrint(
+      'Activity: ${decoded['tinyml']?['activity']}',
+    );
+
+    debugPrint(
+      'Confidence: ${decoded['tinyml']?['confidence']}',
+    );
+
+    debugPrint(
+      '================================',
+    );
+
+    final gps = decoded['gps'];
+
+    double? latitude;
+    double? longitude;
+
+    if (gps is Map) {
+      final rawLatitude = gps['latitude'];
+      final rawLongitude = gps['longitude'];
+
+      if (rawLatitude is num) {
+        latitude = rawLatitude.toDouble();
+      }
+
+      if (rawLongitude is num) {
+        longitude = rawLongitude.toDouble();
+      }
+    }
+
+    try {
+      await BackendApiService().sendFallEvent(
+        severity: 'high',
+        latitude: latitude,
+        longitude: longitude,
+      );
+
+      debugPrint(
+        'FALL EVENT berhasil dikirim ke backend.',
+      );
+      return true;
+    } catch (e) {
+      debugPrint(
+        'FALL EVENT gagal dikirim: $e',
+      );
+
+      // Jika pengiriman gagal, izinkan percobaan
+      // kembali pada data berikutnya.
+      _fallEventActive = false;
+      return false;
+    }
   }
 
   // ============================================================
@@ -834,9 +926,9 @@ class EmerysBleService {
   // HANDLE COMPLETE JSON
   // ============================================================
 
-  void _handleCompleteJson(
+  Future<void> _handleCompleteJson(
       String raw,
-      ) {
+      ) async {
     try {
       final decodedRaw =
       jsonDecode(raw);
@@ -887,23 +979,89 @@ class EmerysBleService {
       final kondisi =
       decoded['kondisi']
           ?.toString()
-          .trim();
+          .trim()
+          .toUpperCase();
 
       final rawConfidence =
       decoded['confidence'];
 
       if (kondisi != null &&
           kondisi.isNotEmpty) {
-        decoded['tinyml'] = {
-          'activity': kondisi,
-          'confidence':
+
+        final confidence =
           rawConfidence is num
-              ? rawConfidence
-              .toDouble()
-              : 0.0,
-          'modelVersion':
-          'tinyml-v1',
+            ? rawConfidence.toDouble()
+            : 0.0;
+
+        final isFallLabel =
+          kondisi == 'JATUH DEBEL' ||
+          kondisi == 'JATUH SAMPING';
+
+        final isFallCandidate =
+          isFallLabel &&
+          confidence >= fallConfidenceThreshold;
+
+        final activity =
+          isFallLabel
+            ? 'jatuh'
+            : kondisi.toLowerCase();
+
+        decoded['tinyml'] = {
+          'activity': activity,
+          'confidence': confidence,
+          'modelVersion': 'tinyml-v1',
         };
+
+        // ============================================================
+        // FALL CONFIRMATION
+        // ============================================================
+        //
+        // Tidak langsung mengirim event hanya karena 1 sample
+        // terdeteksi jatuh.
+        //
+        // Harus:
+        // 1. Kondisi = JATUH DEBEL / JATUH SAMPING
+        // 2. Confidence >= 0.50
+        // 3. Terdeteksi 5 sample berturut-turut
+        // ============================================================
+
+        if (isFallCandidate) {
+          _consecutiveFallSamples++;
+
+          debugPrint(
+            'FALL CANDIDATE: '
+            '$_consecutiveFallSamples/'
+            '$fallConfirmationSamples '
+            '(confidence=$confidence)',
+          );
+
+          if (_consecutiveFallSamples >= fallConfirmationSamples) {
+            debugPrint(
+              'FALL CONFIRMED: '
+                  '$_consecutiveFallSamples/$fallConfirmationSamples',
+            );
+
+            if (!_fallEventActive && _pendingFallEvent == null) {
+              _pendingFallEvent = Map<String, dynamic>.from(decoded);
+
+              debugPrint(
+                'PENDING FALL EVENT DIBUAT.',
+              );
+            } else {
+              debugPrint(
+                'FALL EVENT SUDAH AKTIF/TERTUNDA, '
+                    'tidak membuat event baru.',
+              );
+            }
+          }
+        } else {
+          // Jika kondisi bukan jatuh atau confidence
+          // terlalu rendah, hitungan dimulai kembali.
+          _consecutiveFallSamples = 0;
+
+          // Episode jatuh dianggap selesai.
+          _fallEventActive = false;
+        }
       }
 
       // ========================================================
@@ -1399,6 +1557,37 @@ class EmerysBleService {
             '${result['windowId']}',
       );
 
+      if (_pendingFallEvent != null) {
+        debugPrint(
+          'TELEMETRY SUDAH MASUK DATABASE.',
+        );
+
+        debugPrint(
+          'Pending fall event ditemukan.',
+        );
+
+        final pendingFall =
+            _pendingFallEvent;
+
+        final fallSent =
+        await _handleFallEvent(
+          pendingFall!,
+        );
+
+        if (fallSent) {
+          _pendingFallEvent = null;
+
+          debugPrint(
+            'PENDING FALL EVENT SUDAH DIKIRIM.',
+          );
+        } else {
+          debugPrint(
+            'PENDING FALL EVENT BELUM DIHAPUS '
+                'karena pengiriman gagal.',
+          );
+        }
+      }
+
       debugPrint(
         '================================',
       );
@@ -1457,6 +1646,11 @@ class EmerysBleService {
     _expectedChunks = 0;
 
     _receivedChunks.clear();
+
+    // Reset status deteksi jatuh saat BLE terputus.
+    _consecutiveFallSamples = 0;
+    _fallEventActive = false;
+    _pendingFallEvent = null;
 
     _updateConnectionStatus(
       BleConnectionStatus.disconnected,

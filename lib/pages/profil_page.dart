@@ -1,15 +1,15 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+
 import '../services/backend_api_service.dart';
 
 class ProfilPage extends StatefulWidget {
   final VoidCallback onBackPressed;
 
-  const ProfilPage({
-    super.key,
-    required this.onBackPressed,
-  });
+  const ProfilPage({super.key, required this.onBackPressed});
 
   @override
   State<ProfilPage> createState() => _ProfilPageState();
@@ -17,17 +17,23 @@ class ProfilPage extends StatefulWidget {
 
 class _ProfilPageState extends State<ProfilPage> {
   final BackendApiService _api = BackendApiService();
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   bool _isLoading = true;
   bool _isSaving = false;
   bool _hasData = false;
+  bool _isLoadingWali = true;
 
   String? _elderlyId;
   String? _deviceId;
 
-  StreamSubscription<
-      DocumentSnapshot<Map<String, dynamic>>
-  >? _profileSubscription;
+  Map<String, dynamic>? _waliData;
+
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>?
+  _profileSubscription;
+
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>?
+  _waliSubscription;
 
   final _namaController = TextEditingController();
   final _usiaController = TextEditingController();
@@ -45,6 +51,7 @@ class _ProfilPageState extends State<ProfilPage> {
   @override
   void dispose() {
     _profileSubscription?.cancel();
+    _waliSubscription?.cancel();
 
     _namaController.dispose();
     _usiaController.dispose();
@@ -53,132 +60,51 @@ class _ProfilPageState extends State<ProfilPage> {
     super.dispose();
   }
 
-  void _listenToElderlyProfile(String elderlyId) {
-    // Hentikan listener sebelumnya jika ada.
-    _profileSubscription?.cancel();
-
-    debugPrint(
-      '[Firestore] Mulai listen elderly_profiles/$elderlyId',
-    );
-
-    _profileSubscription = FirebaseFirestore.instance
-        .collection('elderly_profiles')
-        .doc(elderlyId)
-        .snapshots()
-        .listen(
-          (snapshot) {
-        if (!snapshot.exists) {
-          debugPrint(
-            '[Firestore] Profil lansia sudah tidak ditemukan.',
-          );
-
-          if (!mounted) return;
-
-          setState(() {
-            _hasData = false;
-            _deviceId = null;
-          });
-
-          return;
-        }
-
-        final data = snapshot.data();
-
-        if (data == null) {
-          return;
-        }
-
-        final deviceId = data['deviceId']?.toString();
-
-        debugPrint(
-          '[Firestore] Perubahan profil diterima. '
-              'deviceId=$deviceId',
-        );
-
-        if (!mounted) return;
-
-        setState(() {
-          _hasData = true;
-
-          _elderlyId = snapshot.id;
-
-          _deviceId = deviceId;
-
-          _namaController.text =
-              data['name']?.toString() ?? '';
-
-          _usiaController.text =
-              data['age']?.toString() ?? '';
-
-          _catatanController.text =
-              data['healthNote']?.toString() ?? '';
-        });
-      },
-      onError: (error) {
-        debugPrint(
-          '[Firestore] Error listener: $error',
-        );
-      },
-    );
-  }
-
   // ============================================================
-  // LOAD PROFIL DARI BACKEND
+  // LOAD PROFIL DARI FIRESTORE
+  // Satu akun wali mengambil satu profil lansia yang terhubung.
   // ============================================================
 
   Future<void> _loadProfile() async {
     try {
-      final data = await _api.getMyElderlyProfile();
+      final user = FirebaseAuth.instance.currentUser;
+
+      if (user == null) {
+        throw Exception('Pengguna belum login.');
+      }
+
+      final snapshot = await _firestore
+          .collection('elderly_profiles')
+          .where('waliIds', arrayContains: user.uid)
+          .limit(1)
+          .get();
 
       if (!mounted) return;
 
-      if (data['exists'] == true) {
-        final elderlyId =
-        data['elderlyId']?.toString();
+      if (snapshot.docs.isNotEmpty) {
+        final elderlyId = snapshot.docs.first.id;
 
-        if (elderlyId != null &&
-            elderlyId.isNotEmpty) {
-          setState(() {
-            _hasData = true;
+        setState(() {
+          _hasData = true;
+          _elderlyId = elderlyId;
+        });
 
-            _elderlyId = elderlyId;
-            _deviceId =
-                data['deviceId']?.toString();
-
-            _namaController.text =
-                data['name']?.toString() ?? '';
-
-            _usiaController.text =
-                data['age']?.toString() ?? '';
-
-            _catatanController.text =
-                data['healthNote']?.toString() ?? '';
-          });
-
-          // Mulai mendengarkan perubahan Firestore.
-          _listenToElderlyProfile(
-            elderlyId,
-          );
-        }
+        _listenToElderlyProfile(elderlyId);
       } else {
         setState(() {
           _hasData = false;
+          _elderlyId = null;
+          _deviceId = null;
+          _waliData = null;
+          _isLoadingWali = false;
         });
       }
     } catch (e) {
-      debugPrint(
-        'Gagal mengambil profil lansia: $e',
-      );
+      debugPrint('Gagal mengambil profil lansia: $e');
 
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Gagal mengambil data profil: $e',
-          ),
-        ),
-      );
+      if (mounted) {
+        _showMessage('Gagal mengambil data profil: $e');
+      }
     } finally {
       if (mounted) {
         setState(() {
@@ -189,12 +115,126 @@ class _ProfilPageState extends State<ProfilPage> {
   }
 
   // ============================================================
-  // TAMBAH / EDIT PROFIL
+  // LISTENER PROFIL LANSIA
   // ============================================================
 
-  void _showFormInput({
-    bool isEdit = false,
-  }) {
+  void _listenToElderlyProfile(String elderlyId) {
+    _profileSubscription?.cancel();
+
+    debugPrint('[Firestore] Listen elderly_profiles/$elderlyId');
+
+    _profileSubscription = _firestore
+        .collection('elderly_profiles')
+        .doc(elderlyId)
+        .snapshots()
+        .listen(
+          (snapshot) {
+        if (!snapshot.exists) {
+          if (!mounted) return;
+
+          setState(() {
+            _hasData = false;
+            _elderlyId = null;
+            _deviceId = null;
+            _waliData = null;
+            _isLoadingWali = false;
+          });
+
+          return;
+        }
+
+        final data = snapshot.data();
+
+        if (data == null || !mounted) return;
+
+        final deviceId = data['deviceId']?.toString();
+        final waliIds = List<dynamic>.from(data['waliIds'] ?? []);
+
+        setState(() {
+          _hasData = true;
+          _elderlyId = snapshot.id;
+          _deviceId = deviceId;
+
+          _namaController.text = data['name']?.toString() ?? '';
+          _usiaController.text = data['age']?.toString() ?? '';
+          _catatanController.text =
+              data['healthNote']?.toString() ?? '';
+        });
+
+        _listenToWali(waliIds);
+      },
+      onError: (error) {
+        debugPrint('[Firestore] Error listener profil: $error');
+      },
+    );
+  }
+
+  // ============================================================
+  // LISTENER KONTAK WALI DARI USERS
+  // ============================================================
+
+  void _listenToWali(List<dynamic> waliIds) {
+    _waliSubscription?.cancel();
+
+    final currentUid = FirebaseAuth.instance.currentUser?.uid;
+
+    if (waliIds.isEmpty) {
+      if (!mounted) return;
+
+      setState(() {
+        _waliData = null;
+        _isLoadingWali = false;
+      });
+
+      return;
+    }
+
+    final otherWaliIds = waliIds
+        .map((id) => id.toString())
+        .where((id) => id != currentUid)
+        .toList();
+
+    final targetWaliId = otherWaliIds.isNotEmpty
+        ? otherWaliIds.first
+        : waliIds.first.toString();
+
+    if (!mounted) return;
+
+    setState(() {
+      _isLoadingWali = true;
+    });
+
+    _waliSubscription = _firestore
+        .collection('users')
+        .doc(targetWaliId)
+        .snapshots()
+        .listen(
+          (snapshot) {
+        if (!mounted) return;
+
+        setState(() {
+          _waliData = snapshot.exists ? snapshot.data() : null;
+          _isLoadingWali = false;
+        });
+      },
+      onError: (error) {
+        debugPrint('[Firestore] Error listener wali: $error');
+
+        if (!mounted) return;
+
+        setState(() {
+          _waliData = null;
+          _isLoadingWali = false;
+        });
+      },
+    );
+  }
+
+  // ============================================================
+  // FORM TAMBAH / EDIT PROFIL
+  // ============================================================
+
+  void _showFormInput({bool isEdit = false}) {
     if (!isEdit) {
       _namaController.clear();
       _usiaController.clear();
@@ -206,231 +246,243 @@ class _ProfilPageState extends State<ProfilPage> {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (sheetContext) {
-        return Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.only(
-              topLeft: Radius.circular(24),
-              topRight: Radius.circular(24),
-            ),
-          ),
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.of(sheetContext)
-                .viewInsets
-                .bottom,
-            top: 24,
-            left: 24,
-            right: 24,
-          ),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment:
-              CrossAxisAlignment.start,
-              children: [
-                Text(
-                  isEdit
-                      ? 'Edit Data Lansia'
-                      : 'Tambah Profil Lansia',
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return Container(
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(24),
+                  topRight: Radius.circular(24),
                 ),
-
-                const SizedBox(height: 20),
-
-                _buildFormTextField(
-                  'Nama Lengkap',
-                  _namaController,
-                  'Masukkan nama lansia',
-                ),
-
-                const SizedBox(height: 16),
-
-                _buildFormTextField(
-                  'Usia',
-                  _usiaController,
-                  'Contoh: 72',
-                  keyboardType:
-                  TextInputType.number,
-                ),
-
-                const SizedBox(height: 16),
-
-                _buildFormTextField(
-                  'Catatan Kesehatan',
-                  _catatanController,
-                  'Masukkan diagnosa atau catatan medis',
-                  maxLines: 3,
-                ),
-
-                const SizedBox(height: 32),
-
-                SizedBox(
-                  width: double.infinity,
-                  height: 52,
-                  child: ElevatedButton(
-                    onPressed: _isSaving
-                        ? null
-                        : () async {
-                      await _saveProfile(
-                        sheetContext,
-                      );
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor:
-                      const Color(0xFF0D8B94),
-                      foregroundColor:
-                      Colors.white,
-                      disabledBackgroundColor:
-                      Colors.grey,
-                      shape:
-                      const StadiumBorder(),
-                      elevation: 0,
-                    ),
-                    child: _isSaving
-                        ? const SizedBox(
-                      width: 22,
-                      height: 22,
-                      child:
-                      CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    )
-                        : Text(
-                      isEdit
-                          ? 'Simpan Perubahan'
-                          : 'Simpan Profil',
-                      style:
-                      const TextStyle(
-                        fontSize: 16,
-                        fontWeight:
-                        FontWeight.bold,
+              ),
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(sheetContext).viewInsets.bottom,
+                top: 24,
+                left: 24,
+                right: 24,
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      isEdit ? 'Edit Data Lansia' : 'Tambah Profil Lansia',
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
-                  ),
-                ),
 
-                const SizedBox(height: 24),
-              ],
-            ),
-          ),
+                    const SizedBox(height: 20),
+
+                    _buildFormTextField(
+                      'Nama Lengkap',
+                      _namaController,
+                      'Masukkan nama lansia',
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    _buildFormTextField(
+                      'Usia',
+                      _usiaController,
+                      'Contoh: 72',
+                      keyboardType: TextInputType.number,
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    _buildFormTextField(
+                      'Catatan Kesehatan',
+                      _catatanController,
+                      'Masukkan diagnosa atau catatan medis',
+                      maxLines: 3,
+                    ),
+
+                    const SizedBox(height: 32),
+
+                    SizedBox(
+                      width: double.infinity,
+                      height: 52,
+                      child: ElevatedButton(
+                        onPressed: _isSaving
+                            ? null
+                            : () async {
+                          setSheetState(() {});
+                          await _saveProfile(
+                            sheetContext,
+                            setSheetState,
+                          );
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF0D8B94),
+                          foregroundColor: Colors.white,
+                          disabledBackgroundColor: Colors.grey,
+                          shape: const StadiumBorder(),
+                          elevation: 0,
+                        ),
+                        child: _isSaving
+                            ? const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                            : Text(
+                          isEdit
+                              ? 'Simpan Perubahan'
+                              : 'Simpan Profil',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 24),
+                  ],
+                ),
+              ),
+            );
+          },
         );
       },
     );
   }
 
+  // ============================================================
+  // SIMPAN PROFIL KE FIRESTORE
+  // ============================================================
+
   Future<void> _saveProfile(
       BuildContext sheetContext,
+      StateSetter setSheetState,
       ) async {
-    final name =
-    _namaController.text.trim();
+    if (_isSaving) return;
 
-    final ageText =
-    _usiaController.text.trim();
-
-    final healthNote =
-    _catatanController.text.trim();
+    final name = _namaController.text.trim();
+    final ageText = _usiaController.text.trim();
+    final healthNote = _catatanController.text.trim();
 
     if (name.isEmpty) {
-      _showMessage(
-        'Nama lansia wajib diisi.',
-      );
+      _showMessage('Nama lansia wajib diisi.');
       return;
     }
 
     if (ageText.isEmpty) {
-      _showMessage(
-        'Usia lansia wajib diisi.',
-      );
+      _showMessage('Usia lansia wajib diisi.');
       return;
     }
 
     final age = int.tryParse(ageText);
 
-    if (age == null) {
-      _showMessage(
-        'Usia harus berupa angka.',
-      );
+    if (age == null || age < 1 || age > 150) {
+      _showMessage('Usia tidak valid.');
       return;
     }
 
-    if (age < 1 || age > 150) {
-      _showMessage(
-        'Usia tidak valid.',
-      );
+    final user = FirebaseAuth.instance.currentUser;
+
+    if (user == null) {
+      _showMessage('Silakan login terlebih dahulu.');
       return;
     }
 
     setState(() {
       _isSaving = true;
     });
+    setSheetState(() {});
 
     try {
-      // Untuk saat ini backend baru mendukung
-      // pembuatan profil. Edit profil belum dibuat
-      // sebagai endpoint terpisah.
-      if (!_hasData) {
-        final result =
-        await _api.createElderlyProfile(
-          name: name,
-          age: age,
-          healthNote: healthNote,
-        );
+      if (_elderlyId == null) {
+        // CEK DOKUMEN USER SEBELUM MEMBUAT PROFIL
+        final userRef = _firestore.collection('users').doc(user.uid);
+        final userSnapshot = await userRef.get();
 
-        if (!mounted) return;
-
-        final elderlyId =
-        result['elderlyId']?.toString();
-
-        setState(() {
-          _hasData = true;
-          _elderlyId = elderlyId;
-          _deviceId =
-              result['deviceId']?.toString();
-        });
-
-        if (elderlyId != null &&
-            elderlyId.isNotEmpty) {
-          _listenToElderlyProfile(
-            elderlyId,
+        if (!userSnapshot.exists) {
+          throw Exception(
+            'Data akun wali tidak ditemukan di koleksi users.',
           );
         }
 
+        // BUAT DOKUMEN PROFIL LANSIA
+        final elderlyRef =
+        _firestore.collection('elderly_profiles').doc();
+
+        final batch = _firestore.batch();
+
+        batch.set(elderlyRef, {
+          'name': name,
+          'age': age,
+          'healthNote': healthNote,
+          'createdAt': FieldValue.serverTimestamp(),
+          'deviceId': '',
+          'waliIds': [user.uid],
+        });
+
+        // HUBUNGKAN PROFIL KE AKUN WALI
+        batch.update(userRef, {
+          'elderlyIds': FieldValue.arrayUnion([elderlyRef.id]),
+        });
+
+        await batch.commit();
+
+        if (!mounted || !sheetContext.mounted) return;
+
+        setState(() {
+          _hasData = true;
+          _elderlyId = elderlyRef.id;
+          _deviceId = '';
+        });
+
+        _listenToElderlyProfile(elderlyRef.id);
+
         Navigator.pop(sheetContext);
 
-        _showMessage(
-          'Profil lansia berhasil disimpan.',
-        );
+        _showMessage('Profil lansia berhasil ditambahkan ke database.');
       } else {
-        // Edit profil belum memiliki endpoint backend.
-        // Untuk sementara kita tidak mengirim perubahan
-        // ke server.
+        // UPDATE PROFIL YANG SUDAH ADA
+        await _firestore
+            .collection('elderly_profiles')
+            .doc(_elderlyId)
+            .update({
+          'name': name,
+          'age': age,
+          'healthNote': healthNote,
+        });
+
+        if (!mounted || !sheetContext.mounted) return;
+
         Navigator.pop(sheetContext);
 
-        _showMessage(
-          'Edit profil belum tersedia di backend.',
-        );
+        _showMessage('Profil lansia berhasil diperbarui.');
       }
     } catch (e) {
-      if (!mounted) return;
+      debugPrint('[Firestore] Gagal menyimpan profil: $e');
 
-      _showMessage(
-        'Gagal menyimpan profil: $e',
-      );
+      if (mounted) {
+        _showMessage('Gagal menyimpan profil: $e');
+      }
     } finally {
       if (mounted) {
         setState(() {
           _isSaving = false;
         });
       }
+
+      if (sheetContext.mounted) {
+        setSheetState(() {});
+      }
     }
   }
 
   // ============================================================
-  // GENERATE PAIRING CODE
+  // DEVICE PAIRING
   // ============================================================
 
   Future<String?> _showDeviceIdDialog() async {
@@ -445,21 +497,15 @@ class _ProfilPageState extends State<ProfilPage> {
           ),
           title: const Text(
             'Hubungkan Perangkat',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-            ),
+            style: TextStyle(fontWeight: FontWeight.bold),
           ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                'Masukkan Device ID yang tertera '
-                    'pada perangkat EMERYS.',
-                style: TextStyle(
-                  fontSize: 14,
-                  height: 1.4,
-                ),
+                'Masukkan Device ID yang tertera pada perangkat EMERYS.',
+                style: TextStyle(fontSize: 14, height: 1.4),
               ),
 
               const SizedBox(height: 16),
@@ -476,20 +522,15 @@ class _ProfilPageState extends State<ProfilPage> {
 
               TextField(
                 controller: controller,
-                textCapitalization:
-                TextCapitalization.characters,
+                textCapitalization: TextCapitalization.characters,
                 decoration: InputDecoration(
                   hintText: 'Contoh: EMERYS_001',
                   border: OutlineInputBorder(
-                    borderRadius:
-                    BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                  focusedBorder:
-                  OutlineInputBorder(
-                    borderRadius:
-                    BorderRadius.circular(12),
-                    borderSide:
-                    const BorderSide(
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(
                       color: Color(0xFF0D8B94),
                     ),
                   ),
@@ -499,39 +540,26 @@ class _ProfilPageState extends State<ProfilPage> {
           ),
           actions: [
             TextButton(
-              onPressed: () {
-                Navigator.pop(dialogContext);
-              },
+              onPressed: () => Navigator.pop(dialogContext),
               child: const Text(
                 'Batal',
-                style: TextStyle(
-                  color: Colors.grey,
-                ),
+                style: TextStyle(color: Colors.grey),
               ),
             ),
             ElevatedButton(
               onPressed: () {
-                final deviceId =
-                controller.text.trim();
+                final deviceId = controller.text.trim();
 
-                if (deviceId.isEmpty) {
-                  return;
-                }
+                if (deviceId.isEmpty) return;
 
-                Navigator.pop(
-                  dialogContext,
-                  deviceId,
-                );
+                Navigator.pop(dialogContext, deviceId);
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor:
-                const Color(0xFF0D8B94),
+                backgroundColor: const Color(0xFF0D8B94),
                 foregroundColor: Colors.white,
                 shape: const StadiumBorder(),
               ),
-              child: const Text(
-                'Lanjutkan',
-              ),
+              child: const Text('Lanjutkan'),
             ),
           ],
         );
@@ -539,44 +567,35 @@ class _ProfilPageState extends State<ProfilPage> {
     );
 
     controller.dispose();
-
     return result;
   }
 
   Future<void> _generatePairingCode() async {
     if (!_hasData) {
-      _showMessage(
-        'Buat profil lansia terlebih dahulu.',
-      );
+      _showMessage('Buat profil lansia terlebih dahulu.');
       return;
     }
 
     if (_isDeviceConnected) {
-      _showMessage(
-        'Perangkat lansia sudah terhubung.',
-      );
+      _showMessage('Perangkat lansia sudah terhubung.');
       return;
     }
 
     final deviceId = await _showDeviceIdDialog();
 
-    if (deviceId == null || deviceId.isEmpty) {
-      return;
-    }
+    if (deviceId == null || deviceId.isEmpty) return;
+    if (!mounted) return;
 
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (_) {
-        return const Center(
-          child: CircularProgressIndicator(),
-        );
-      },
+      builder: (_) => const Center(
+        child: CircularProgressIndicator(),
+      ),
     );
 
     try {
-      final result =
-      await _api.generateDevicePairing(
+      final result = await _api.generateDevicePairing(
         deviceId: deviceId,
       );
 
@@ -584,17 +603,11 @@ class _ProfilPageState extends State<ProfilPage> {
 
       Navigator.pop(context);
 
-      final code =
-          result['pairingCode']?.toString() ?? '';
-
-      final expires =
-          result['expiresInMinutes']?.toString() ??
-              '15';
+      final code = result['pairingCode']?.toString() ?? '';
+      final expires = result['expiresInMinutes']?.toString() ?? '15';
 
       if (code.isEmpty) {
-        _showMessage(
-          'Kode pairing tidak ditemukan.',
-        );
+        _showMessage('Kode pairing tidak ditemukan.');
         return;
       }
 
@@ -606,10 +619,7 @@ class _ProfilPageState extends State<ProfilPage> {
       if (!mounted) return;
 
       Navigator.pop(context);
-
-      _showMessage(
-        'Gagal membuat kode pairing: $e',
-      );
+      _showMessage('Gagal membuat kode pairing: $e');
     }
   }
 
@@ -623,15 +633,12 @@ class _ProfilPageState extends State<ProfilPage> {
       builder: (dialogContext) {
         return AlertDialog(
           shape: RoundedRectangleBorder(
-            borderRadius:
-            BorderRadius.circular(24),
+            borderRadius: BorderRadius.circular(24),
           ),
           title: const Center(
             child: Text(
               'Kode Setup Perangkat',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-              ),
+              style: TextStyle(fontWeight: FontWeight.bold),
             ),
           ),
           content: Column(
@@ -646,15 +653,11 @@ class _ProfilPageState extends State<ProfilPage> {
 
               Container(
                 width: double.infinity,
-                padding:
-                const EdgeInsets.symmetric(
-                  vertical: 20,
-                ),
+                padding: const EdgeInsets.symmetric(vertical: 20),
                 decoration: BoxDecoration(
                   color: const Color(0xFF0D8B94)
                       .withValues(alpha: 0.08),
-                  borderRadius:
-                  BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(16),
                 ),
                 child: Text(
                   code,
@@ -687,20 +690,13 @@ class _ProfilPageState extends State<ProfilPage> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(dialogContext);
-                },
-                style:
-                ElevatedButton.styleFrom(
-                  backgroundColor:
-                  const Color(0xFF0D8B94),
-                  foregroundColor:
-                  Colors.white,
-                  shape:
-                  const StadiumBorder(),
+                onPressed: () => Navigator.pop(dialogContext),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF0D8B94),
+                  foregroundColor: Colors.white,
+                  shape: const StadiumBorder(),
                 ),
-                child:
-                const Text('Selesai'),
+                child: const Text('Selesai'),
               ),
             ),
           ],
@@ -716,87 +712,44 @@ class _ProfilPageState extends State<ProfilPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor:
-      Theme.of(context)
-          .scaffoldBackgroundColor,
-
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         backgroundColor:
-        Theme.of(context)
-            .appBarTheme
-            .backgroundColor ??
-            Theme.of(context)
-                .colorScheme
-                .surface,
+        Theme.of(context).appBarTheme.backgroundColor ??
+            Theme.of(context).colorScheme.surface,
         elevation: 0,
         scrolledUnderElevation: 0,
-
         leading: IconButton(
           icon: Icon(
             Icons.arrow_back,
-            color: Theme.of(context)
-                .colorScheme
-                .onSurface,
+            color: Theme.of(context).colorScheme.onSurface,
             size: 24,
           ),
-          onPressed:
-          widget.onBackPressed,
+          onPressed: widget.onBackPressed,
         ),
-
         title: Text(
           'Profil Lansia',
           style: TextStyle(
-            color: Theme.of(context)
-                .colorScheme
-                .onSurface,
-            fontWeight:
-            FontWeight.bold,
+            color: Theme.of(context).colorScheme.onSurface,
+            fontWeight: FontWeight.bold,
             fontSize: 20,
           ),
         ),
-
         actions: _hasData
             ? [
-          Padding(
-            padding:
-            const EdgeInsets.only(
-              right: 16,
-            ),
-            child:
-            GestureDetector(
-              onTap: () =>
-                  _showFormInput(
-                    isEdit: false,
-                  ),
-              child: Container(
-                width: 36,
-                height: 36,
-                decoration:
-                const BoxDecoration(
-                  color:
-                  Color(0xFF0D8B94),
-                  shape:
-                  BoxShape.circle,
-                ),
-                child:
-                const Icon(
-                  Icons.add,
-                  color:
-                  Colors.white,
-                  size: 20,
-                ),
-              ),
+          IconButton(
+            tooltip: 'Edit profil',
+            onPressed: () => _showFormInput(isEdit: true),
+            icon: const Icon(
+              Icons.edit_outlined,
+              color: Color(0xFF0D8B94),
             ),
           ),
         ]
             : null,
       ),
-
       body: _isLoading
-          ? const Center(
-        child:
-        CircularProgressIndicator(),
-      )
+          ? const Center(child: CircularProgressIndicator())
           : _hasData
           ? _buildProfileContent()
           : _buildEmptyState(),
@@ -810,19 +763,14 @@ class _ProfilPageState extends State<ProfilPage> {
   Widget _buildEmptyState() {
     return Center(
       child: Padding(
-        padding:
-        const EdgeInsets.all(32),
+        padding: const EdgeInsets.all(32),
         child: Column(
-          mainAxisAlignment:
-          MainAxisAlignment.center,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
-              Icons
-                  .assignment_ind_outlined,
+              Icons.assignment_ind_outlined,
               size: 80,
-              color: Theme.of(context)
-                  .colorScheme
-                  .onSurfaceVariant,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
 
             const SizedBox(height: 16),
@@ -831,26 +779,19 @@ class _ProfilPageState extends State<ProfilPage> {
               'Belum Ada Profil Lansia',
               style: TextStyle(
                 fontSize: 18,
-                fontWeight:
-                FontWeight.bold,
-                color: Theme.of(context)
-                    .colorScheme
-                    .onSurface,
+                fontWeight: FontWeight.bold,
+                color: Theme.of(context).colorScheme.onSurface,
               ),
             ),
 
             const SizedBox(height: 8),
 
             Text(
-              'Tambahkan profil lansia '
-                  'untuk mulai menggunakan EMERYS.',
-              textAlign:
-              TextAlign.center,
+              'Tambahkan profil lansia untuk mulai menggunakan EMERYS.',
+              textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 14,
-                color: Theme.of(context)
-                    .colorScheme
-                    .onSurfaceVariant,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
 
@@ -860,27 +801,16 @@ class _ProfilPageState extends State<ProfilPage> {
               width: 220,
               height: 48,
               child: ElevatedButton(
-                onPressed: () =>
-                    _showFormInput(
-                      isEdit: false,
-                    ),
-                style:
-                ElevatedButton.styleFrom(
-                  backgroundColor:
-                  const Color(
-                      0xFF0D8B94),
-                  foregroundColor:
-                  Colors.white,
-                  shape:
-                  const StadiumBorder(),
+                onPressed: () => _showFormInput(isEdit: false),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF0D8B94),
+                  foregroundColor: Colors.white,
+                  shape: const StadiumBorder(),
                   elevation: 0,
                 ),
                 child: const Text(
                   '+ Tambah Profil Lansia',
-                  style: TextStyle(
-                    fontWeight:
-                    FontWeight.bold,
-                  ),
+                  style: TextStyle(fontWeight: FontWeight.bold),
                 ),
               ),
             ),
@@ -898,141 +828,73 @@ class _ProfilPageState extends State<ProfilPage> {
     return SingleChildScrollView(
       child: Center(
         child: Container(
-          constraints:
-          const BoxConstraints(
-            maxWidth: 390,
-          ),
-          width:
-          MediaQuery.of(context)
-              .size
-              .width *
-              0.9,
-          padding:
-          const EdgeInsets.only(
-            top: 16,
-            bottom: 32,
-          ),
+          constraints: const BoxConstraints(maxWidth: 390),
+          width: MediaQuery.of(context).size.width * 0.9,
+          padding: const EdgeInsets.only(top: 16, bottom: 32),
           child: Column(
             children: [
               Container(
-                decoration:
-                BoxDecoration(
-                  color: Theme.of(context)
-                      .cardColor,
-                  borderRadius:
-                  BorderRadius.circular(
-                    24,
-                  ),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).cardColor,
+                  borderRadius: BorderRadius.circular(24),
                   border: Border.all(
-                    color:
-                    Theme.of(context)
-                        .dividerColor,
+                    color: Theme.of(context).dividerColor,
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black
-                          .withValues(
-                        alpha: 0.04,
-                      ),
+                      color: Colors.black.withValues(alpha: 0.04),
                       blurRadius: 20,
-                      offset:
-                      const Offset(
-                        0,
-                        4,
-                      ),
+                      offset: const Offset(0, 4),
                     ),
                   ],
                 ),
                 child: Column(
-                  crossAxisAlignment:
-                  CrossAxisAlignment
-                      .start,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // ==================================================
                     // DATA PROFIL
-                    // ==================================================
-
                     Padding(
-                      padding:
-                      const EdgeInsets
-                          .fromLTRB(
-                        20,
-                        20,
-                        20,
-                        0,
-                      ),
+                      padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
                       child: Row(
                         children: [
                           Container(
                             width: 60,
                             height: 60,
-                            decoration:
-                            BoxDecoration(
-                              color:
-                              const Color(
-                                0xFF0D8B94,
-                              ).withValues(
-                                alpha: 0.1,
-                              ),
-                              borderRadius:
-                              BorderRadius
-                                  .circular(
-                                16,
-                              ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF0D8B94)
+                                  .withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(16),
                             ),
-                            child:
-                            const Icon(
+                            child: const Icon(
                               Icons.person,
-                              color:
-                              Color(
-                                0xFF0D8B94,
-                              ),
+                              color: Color(0xFF0D8B94),
                               size: 30,
                             ),
                           ),
 
-                          const SizedBox(
-                              width: 14),
+                          const SizedBox(width: 14),
 
                           Expanded(
-                            child:
-                            Column(
-                              crossAxisAlignment:
-                              CrossAxisAlignment
-                                  .start,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  _namaController
-                                      .text,
-                                  style:
-                                  TextStyle(
-                                    fontSize:
-                                    17,
-                                    fontWeight:
-                                    FontWeight
-                                        .bold,
-                                    color: Theme.of(
-                                      context,
-                                    )
+                                  _namaController.text,
+                                  style: TextStyle(
+                                    fontSize: 17,
+                                    fontWeight: FontWeight.bold,
+                                    color: Theme.of(context)
                                         .colorScheme
                                         .onSurface,
                                   ),
                                 ),
-
-                                const SizedBox(
-                                    height: 2),
-
+                                const SizedBox(height: 2),
                                 Text(
                                   'Usia: ${_usiaController.text} tahun',
-                                  style:
-                                  TextStyle(
-                                    color: Theme.of(
-                                      context,
-                                    )
+                                  style: TextStyle(
+                                    color: Theme.of(context)
                                         .colorScheme
                                         .onSurfaceVariant,
-                                    fontSize:
-                                    13,
+                                    fontSize: 13,
                                   ),
                                 ),
                               ],
@@ -1040,40 +902,19 @@ class _ProfilPageState extends State<ProfilPage> {
                           ),
 
                           GestureDetector(
-                            onTap: () =>
-                                _showFormInput(
-                                  isEdit: true,
-                                ),
-                            child:
-                            Container(
-                              padding:
-                              const EdgeInsets
-                                  .all(
-                                8,
-                              ),
-                              decoration:
-                              BoxDecoration(
-                                color: Theme.of(
-                                  context,
-                                )
-                                    .cardColor,
-                                shape:
-                                BoxShape
-                                    .circle,
-                                border:
-                                Border.all(
-                                  color: Theme.of(
-                                    context,
-                                  )
-                                      .dividerColor,
+                            onTap: () => _showFormInput(isEdit: true),
+                            child: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: Theme.of(context).cardColor,
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: Theme.of(context).dividerColor,
                                 ),
                               ),
                               child: Icon(
-                                Icons
-                                    .edit_outlined,
-                                color: Theme.of(
-                                  context,
-                                )
+                                Icons.edit_outlined,
+                                color: Theme.of(context)
                                     .colorScheme
                                     .onSurfaceVariant,
                                 size: 18,
@@ -1084,73 +925,37 @@ class _ProfilPageState extends State<ProfilPage> {
                       ),
                     ),
 
-                    const SizedBox(
-                        height: 24),
+                    const SizedBox(height: 24),
 
-                    // ==================================================
                     // CATATAN KESEHATAN
-                    // ==================================================
-
                     Padding(
-                      padding:
-                      const EdgeInsets
-                          .symmetric(
-                        horizontal: 20,
-                      ),
-                      child:
-                      _buildSectionHeader(
-                        Icons
-                            .medical_services_outlined,
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: _buildSectionHeader(
+                        Icons.medical_services_outlined,
                         'Catatan Kesehatan',
                       ),
                     ),
 
-                    const SizedBox(
-                        height: 12),
+                    const SizedBox(height: 12),
 
                     Padding(
-                      padding:
-                      const EdgeInsets
-                          .symmetric(
-                        horizontal: 20,
-                      ),
-                      child:
-                      Container(
-                        width:
-                        double.infinity,
-                        padding:
-                        const EdgeInsets
-                            .all(
-                          12,
-                        ),
-                        decoration:
-                        BoxDecoration(
-                          color: Theme.of(
-                            context,
-                          ).brightness ==
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).brightness ==
                               Brightness.dark
                               ? Colors.black12
-                              : Colors.grey[
-                          50],
-                          borderRadius:
-                          BorderRadius
-                              .circular(
-                            12,
-                          ),
+                              : Colors.grey[50],
+                          borderRadius: BorderRadius.circular(12),
                         ),
                         child: Text(
-                          _catatanController
-                              .text
-                              .isNotEmpty
-                              ? _catatanController
-                              .text
+                          _catatanController.text.isNotEmpty
+                              ? _catatanController.text
                               : 'Tidak ada catatan kesehatan',
                           style: TextStyle(
-                            color: Theme.of(
-                              context,
-                            )
-                                .colorScheme
-                                .onSurface,
+                            color: Theme.of(context).colorScheme.onSurface,
                             fontSize: 13,
                             height: 1.5,
                           ),
@@ -1161,72 +966,44 @@ class _ProfilPageState extends State<ProfilPage> {
                     Divider(
                       height: 48,
                       thickness: 1.2,
-                      color: Theme.of(
-                        context,
-                      ).dividerColor,
+                      color: Theme.of(context).dividerColor,
                     ),
-
-                    // ==================================================
-                    // PERANGKAT
-                    // ==================================================
 
                     _buildDeviceSection(),
 
                     Divider(
                       height: 48,
                       thickness: 1.2,
-                      color: Theme.of(
-                        context,
-                      ).dividerColor,
+                      color: Theme.of(context).dividerColor,
                     ),
-
-                    // ==================================================
-                    // KONTAK DARURAT
-                    // ==================================================
 
                     _buildEmergencyContactSection(),
                   ],
                 ),
               ),
 
-              const SizedBox(
-                  height: 24),
+              const SizedBox(height: 24),
 
-              // Tombol kelola perangkat
-              // sekarang langsung generate
-              // pairing code.
               SizedBox(
-                width:
-                double.infinity,
+                width: double.infinity,
                 height: 52,
                 child: ElevatedButton(
                   onPressed:
-                  _isDeviceConnected
-                      ? null
-                      : _generatePairingCode,
-                  style:
-                  ElevatedButton.styleFrom(
-                    backgroundColor:
-                    const Color(
-                      0xFF0D8B94,
-                    ),
-                    disabledBackgroundColor:
-                    Colors.grey,
-                    foregroundColor:
-                    Colors.white,
-                    shape:
-                    const StadiumBorder(),
+                  _isDeviceConnected ? null : _generatePairingCode,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF0D8B94),
+                    disabledBackgroundColor: Colors.grey,
+                    foregroundColor: Colors.white,
+                    shape: const StadiumBorder(),
                     elevation: 0,
                   ),
                   child: Text(
                     _isDeviceConnected
                         ? 'Perangkat Sudah Terhubung'
                         : 'Kelola Perangkat',
-                    style:
-                    const TextStyle(
+                    style: const TextStyle(
                       fontSize: 15,
-                      fontWeight:
-                      FontWeight.bold,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
                 ),
@@ -1245,182 +1022,103 @@ class _ProfilPageState extends State<ProfilPage> {
   Widget _buildDeviceSection() {
     if (!_isDeviceConnected) {
       return Padding(
-        padding:
-        const EdgeInsets.symmetric(
-          horizontal: 20,
-        ),
+        padding: const EdgeInsets.symmetric(horizontal: 20),
         child: Column(
-          crossAxisAlignment:
-          CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
-              mainAxisAlignment:
-              MainAxisAlignment
-                  .spaceBetween,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 _buildSectionHeader(
-                  Icons
-                      .bluetooth_disabled,
+                  Icons.bluetooth_disabled,
                   'Perangkat',
                 ),
-
                 Container(
-                  padding:
-                  const EdgeInsets
-                      .symmetric(
+                  padding: const EdgeInsets.symmetric(
                     horizontal: 12,
                     vertical: 7,
                   ),
-                  decoration:
-                  BoxDecoration(
-                    color: Colors.orange
-                        .withValues(
-                      alpha: 0.12,
-                    ),
-                    borderRadius:
-                    BorderRadius
-                        .circular(
-                      12,
-                    ),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                  child:
-                  const Text(
+                  child: const Text(
                     'BELUM TERHUBUNG',
-                    style:
-                    TextStyle(
-                      color:
-                      Colors.orange,
+                    style: TextStyle(
+                      color: Colors.orange,
                       fontSize: 11,
-                      fontWeight:
-                      FontWeight
-                          .bold,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
                 ),
               ],
             ),
 
-            const SizedBox(
-                height: 14),
+            const SizedBox(height: 14),
 
             Container(
-              width:
-              double.infinity,
-              padding:
-              const EdgeInsets
-                  .all(20),
-              decoration:
-              BoxDecoration(
+              width: double.infinity,
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
                 border: Border.all(
-                  color: Theme.of(
-                    context,
-                  ).dividerColor,
+                  color: Theme.of(context).dividerColor,
                 ),
-                borderRadius:
-                BorderRadius
-                    .circular(
-                  16,
-                ),
+                borderRadius: BorderRadius.circular(16),
               ),
               child: Column(
                 children: [
                   Icon(
-                    Icons
-                        .bluetooth_disabled,
+                    Icons.bluetooth_disabled,
                     size: 46,
-                    color: Theme.of(
-                      context,
-                    )
-                        .colorScheme
-                        .onSurfaceVariant,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
 
-                  const SizedBox(
-                      height: 12),
+                  const SizedBox(height: 12),
 
                   Text(
                     'Sandal pintar belum terhubung.',
-                    textAlign:
-                    TextAlign
-                        .center,
-                    style:
-                    TextStyle(
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
                       fontSize: 14,
-                      fontWeight:
-                      FontWeight
-                          .bold,
-                      color: Theme.of(
-                        context,
-                      )
-                          .colorScheme
-                          .onSurface,
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).colorScheme.onSurface,
                     ),
                   ),
 
-                  const SizedBox(
-                      height: 6),
+                  const SizedBox(height: 6),
 
                   Text(
-                    'Hubungkan perangkat dengan '
-                        'menggunakan kode setup pada HP lansia.',
-                    textAlign:
-                    TextAlign
-                        .center,
-                    style:
-                    TextStyle(
+                    'Hubungkan perangkat dengan menggunakan '
+                        'kode setup pada HP lansia.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
                       fontSize: 13,
                       height: 1.4,
-                      color: Theme.of(
-                        context,
-                      )
+                      color: Theme.of(context)
                           .colorScheme
                           .onSurfaceVariant,
                     ),
                   ),
 
-                  const SizedBox(
-                      height: 16),
+                  const SizedBox(height: 16),
 
                   SizedBox(
-                    width:
-                    double.infinity,
+                    width: double.infinity,
                     height: 46,
-                    child:
-                    OutlinedButton(
-                      onPressed:
-                      _generatePairingCode,
-                      style:
-                      OutlinedButton
-                          .styleFrom(
-                        foregroundColor:
-                        const Color(
-                          0xFF0D8B94,
+                    child: OutlinedButton(
+                      onPressed: _generatePairingCode,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFF0D8B94),
+                        side: const BorderSide(
+                          color: Color(0xFF0D8B94),
                         ),
-                        side:
-                        const BorderSide(
-                          color:
-                          Color(
-                            0xFF0D8B94,
-                          ),
-                        ),
-                        shape:
-                        RoundedRectangleBorder(
-                          borderRadius:
-                          BorderRadius
-                              .circular(
-                            12,
-                          ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
                         ),
                       ),
-                      child:
-                      const Text(
+                      child: const Text(
                         'Generate Kode Setup',
-                        style:
-                        TextStyle(
-                          fontWeight:
-                          FontWeight
-                              .bold,
-                        ),
+                        style: TextStyle(fontWeight: FontWeight.bold),
                       ),
                     ),
                   ),
@@ -1432,18 +1130,10 @@ class _ProfilPageState extends State<ProfilPage> {
       );
     }
 
-    // ==========================================================
-    // SUDAH TERHUBUNG
-    // ==========================================================
-
     return Padding(
-      padding:
-      const EdgeInsets.symmetric(
-        horizontal: 20,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Column(
-        crossAxisAlignment:
-        CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildSectionHeader(
             Icons.bluetooth_connected,
@@ -1457,29 +1147,21 @@ class _ProfilPageState extends State<ProfilPage> {
               Container(
                 width: 8,
                 height: 8,
-                decoration:
-                const BoxDecoration(
+                decoration: const BoxDecoration(
                   color: Colors.green,
-                  shape:
-                  BoxShape.circle,
+                  shape: BoxShape.circle,
                 ),
               ),
 
-              const SizedBox(
-                  width: 12),
+              const SizedBox(width: 12),
 
               Expanded(
                 child: Text(
                   'EMERYS Sandal Pintar',
                   style: TextStyle(
                     fontSize: 13,
-                    color: Theme.of(
-                      context,
-                    )
-                        .colorScheme
-                        .onSurface,
-                    fontWeight:
-                    FontWeight.w500,
+                    color: Theme.of(context).colorScheme.onSurface,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
               ),
@@ -1487,10 +1169,8 @@ class _ProfilPageState extends State<ProfilPage> {
               const Text(
                 'Terhubung',
                 style: TextStyle(
-                  color:
-                  Colors.green,
-                  fontWeight:
-                  FontWeight.bold,
+                  color: Colors.green,
+                  fontWeight: FontWeight.bold,
                   fontSize: 13,
                 ),
               ),
@@ -1502,154 +1182,164 @@ class _ProfilPageState extends State<ProfilPage> {
   }
 
   // ============================================================
-  // EMERGENCY CONTACT
+  // KONTAK DARURAT DARI USERS
   // ============================================================
 
   Widget _buildEmergencyContactSection() {
+    final waliName = _waliData?['name']?.toString() ?? '';
+    final waliPhone = _waliData?['phone']?.toString() ?? '';
+
     return Padding(
-      padding:
-      const EdgeInsets.symmetric(
-        horizontal: 20,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Column(
-        crossAxisAlignment:
-        CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment:
-            MainAxisAlignment
-                .spaceBetween,
-            children: [
-              _buildSectionHeader(
-                Icons
-                    .phone_android_outlined,
-                'Kontak Darurat',
-              ),
-
-              GestureDetector(
-                onTap: () {
-                  // TODO:
-                  // Fitur kontak darurat
-                  // akan kita buat nanti.
-                },
-                child: const Text(
-                  '+ Tambah',
-                  style: TextStyle(
-                    color:
-                    Color(0xFF0D8B94),
-                    fontSize: 13,
-                    fontWeight:
-                    FontWeight.bold,
-                  ),
-                ),
-              ),
-            ],
+          _buildSectionHeader(
+            Icons.phone_android_outlined,
+            'Kontak Darurat',
           ),
 
-          const SizedBox(
-              height: 16),
+          const SizedBox(height: 16),
 
-          Container(
-            width:
-            double.infinity,
-            padding:
-            const EdgeInsets
-                .symmetric(
-              vertical: 20,
-              horizontal: 12,
-            ),
-            child: Column(
-              children: [
-                Icon(
-                  Icons.person_outline,
-                  size: 42,
-                  color: Theme.of(
-                    context,
-                  )
-                      .colorScheme
-                      .onSurfaceVariant,
+          if (_isLoadingWali)
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.all(20),
+                child: CircularProgressIndicator(),
+              ),
+            )
+          else if (_waliData == null)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                border: Border.all(
+                  color: Theme.of(context).dividerColor,
                 ),
-
-                const SizedBox(
-                    height: 10),
-
-                Text(
-                  'Belum ada kontak darurat',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight:
-                    FontWeight.bold,
-                    color: Theme.of(
-                      context,
-                    )
-                        .colorScheme
-                        .onSurface,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Column(
+                children: [
+                  Icon(
+                    Icons.person_off_outlined,
+                    size: 42,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
-                ),
 
-                const SizedBox(
-                    height: 6),
+                  const SizedBox(height: 10),
 
-                Text(
-                  'Tambahkan kontak darurat '
-                      'untuk menerima notifikasi jika terjadi kondisi darurat.',
-                  textAlign:
-                  TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 13,
-                    height: 1.4,
-                    color: Theme.of(
-                      context,
-                    )
-                        .colorScheme
-                        .onSurfaceVariant,
-                  ),
-                ),
-
-                const SizedBox(
-                    height: 14),
-
-                OutlinedButton(
-                  onPressed: () {
-                    // TODO:
-                    // Tambah kontak darurat.
-                  },
-                  style:
-                  OutlinedButton.styleFrom(
-                    foregroundColor:
-                    const Color(
-                      0xFF0D8B94,
-                    ),
-                    side:
-                    const BorderSide(
-                      color:
-                      Color(
-                        0xFF0D8B94,
-                      ),
-                    ),
-                    shape:
-                    RoundedRectangleBorder(
-                      borderRadius:
-                      BorderRadius
-                          .circular(
-                        12,
-                      ),
-                    ),
-                  ),
-                  child:
                   const Text(
-                    '+ Tambah Kontak',
-                    style:
-                    TextStyle(
-                      fontWeight:
-                      FontWeight
-                          .bold,
+                    'Data wali belum tersedia',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+
+                  const SizedBox(height: 6),
+
+                  Text(
+                    'Pastikan profil lansia sudah terhubung '
+                        'dengan akun wali.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Theme.of(context)
+                          .colorScheme
+                          .onSurfaceVariant,
                     ),
                   ),
+                ],
+              ),
+            )
+          else
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 20,
+              ),
+              decoration: BoxDecoration(
+                color: Theme.of(context).cardColor,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: Theme.of(context).dividerColor,
                 ),
-              ],
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0D8B94)
+                          .withValues(alpha: 0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.person_outline,
+                      color: Color(0xFF0D8B94),
+                      size: 26,
+                    ),
+                  ),
+
+                  const SizedBox(width: 14),
+
+                  Expanded(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          waliName.isNotEmpty
+                              ? waliName
+                              : 'Nama wali belum tersedia',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                            color: Theme.of(context).colorScheme.onSurface,
+                          ),
+                        ),
+
+                        const SizedBox(height: 6),
+
+                        Text(
+                          waliPhone.isNotEmpty
+                              ? waliPhone
+                              : 'Nomor telepon belum tersedia',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onSurfaceVariant,
+                          ),
+                        ),
+
+                        const SizedBox(height: 6),
+
+                        const Text(
+                          'Wali Lansia',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Color(0xFF0D8B94),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(width: 8),
+
+                  const Icon(
+                    Icons.verified_user_outlined,
+                    color: Color(0xFF0D8B94),
+                    size: 22,
+                  ),
+                ],
+              ),
             ),
-          ),
+
+          // Jarak bawah supaya kartu tidak menempel ke tepi card utama
+          const SizedBox(height: 24),
         ],
       ),
     );
@@ -1659,31 +1349,23 @@ class _ProfilPageState extends State<ProfilPage> {
   // HELPERS
   // ============================================================
 
-  Widget _buildSectionHeader(
-      IconData icon,
-      String title,
-      ) {
+  Widget _buildSectionHeader(IconData icon, String title) {
     return Row(
       children: [
         Icon(
           icon,
-          color:
-          const Color(0xFF0D8B94),
+          color: const Color(0xFF0D8B94),
           size: 18,
         ),
-        const SizedBox(
-            width: 8),
+
+        const SizedBox(width: 8),
+
         Text(
           title,
           style: TextStyle(
             fontSize: 14,
-            fontWeight:
-            FontWeight.bold,
-            color: Theme.of(
-              context,
-            )
-                .colorScheme
-                .onSurface,
+            fontWeight: FontWeight.bold,
+            color: Theme.of(context).colorScheme.onSurface,
           ),
         ),
       ],
@@ -1694,90 +1376,49 @@ class _ProfilPageState extends State<ProfilPage> {
       String label,
       TextEditingController controller,
       String hint, {
-        TextInputType keyboardType =
-            TextInputType.text,
+        TextInputType keyboardType = TextInputType.text,
         int maxLines = 1,
       }) {
     return Column(
-      crossAxisAlignment:
-      CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           label,
-          style:
-          const TextStyle(
-            fontWeight:
-            FontWeight.bold,
+          style: const TextStyle(
+            fontWeight: FontWeight.bold,
             fontSize: 14,
           ),
         ),
 
-        const SizedBox(
-            height: 8),
+        const SizedBox(height: 8),
 
         TextField(
-          controller:
-          controller,
-          keyboardType:
-          keyboardType,
-          maxLines:
-          maxLines,
-          decoration:
-          InputDecoration(
-            hintText:
-            hint,
-            hintStyle:
-            TextStyle(
-              color:
-              Colors.grey[400],
-              fontSize:
-              14,
+          controller: controller,
+          keyboardType: keyboardType,
+          maxLines: maxLines,
+          decoration: InputDecoration(
+            hintText: hint,
+            hintStyle: TextStyle(
+              color: Colors.grey[400],
+              fontSize: 14,
             ),
-            filled:
-            true,
-            fillColor:
-            Colors.grey[50],
-            border:
-            OutlineInputBorder(
-              borderRadius:
-              BorderRadius.circular(
-                12,
-              ),
-              borderSide:
-              BorderSide(
-                color:
-                Colors.grey[200]!,
+            filled: true,
+            fillColor: Colors.grey[50],
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: Colors.grey[200]!),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: Colors.grey[200]!),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(
+                color: Color(0xFF0D8B94),
               ),
             ),
-            enabledBorder:
-            OutlineInputBorder(
-              borderRadius:
-              BorderRadius.circular(
-                12,
-              ),
-              borderSide:
-              BorderSide(
-                color:
-                Colors.grey[200]!,
-              ),
-            ),
-            focusedBorder:
-            OutlineInputBorder(
-              borderRadius:
-              BorderRadius.circular(
-                12,
-              ),
-              borderSide:
-              const BorderSide(
-                color:
-                Color(
-                  0xFF0D8B94,
-                ),
-              ),
-            ),
-            contentPadding:
-            const EdgeInsets
-                .symmetric(
+            contentPadding: const EdgeInsets.symmetric(
               horizontal: 16,
               vertical: 12,
             ),
@@ -1787,17 +1428,11 @@ class _ProfilPageState extends State<ProfilPage> {
     );
   }
 
-  void _showMessage(
-      String message,
-      ) {
+  void _showMessage(String message) {
     if (!mounted) return;
 
-    ScaffoldMessenger.of(context)
-        .showSnackBar(
-      SnackBar(
-        content:
-        Text(message),
-      ),
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
     );
   }
 }

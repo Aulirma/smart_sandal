@@ -5,6 +5,7 @@ import '../services/auth_service.dart';
 import 'login_page.dart';
 import 'bottom_navigation.dart';   // shell dashboard WALI yang sudah ada
 import 'elderly_home_page.dart';   // tampilan baru khusus HP LANSIA
+import '../services/fcm_service.dart';
 
 /// Ditaruh di lib/pages/role_gate.dart
 /// Menggantikan tujuan navigasi setelah SplashScreen.
@@ -38,11 +39,13 @@ class RoleGate extends StatelessWidget {
 
             switch (roleSnapshot.data) {
               case UserRole.wali:
+                FcmService.instance.saveWaliFcmToken();
                 return const BottomNavigation();
+
               case UserRole.elderlyDevice:
                 return const ElderlyHomePage();
+
               default:
-              // Role belum di-set di Firestore / data user tidak lengkap
                 return const LoginPage();
             }
           },
