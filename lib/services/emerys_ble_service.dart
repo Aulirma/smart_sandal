@@ -44,7 +44,8 @@ class EmerysBleService {
   // TELEMETRY BUFFER
   // ============================================================
 
-  static const int telemetryBufferSize = 50;
+  // Real-time: setiap sample langsung dikirim (tanpa menunggu 50 sample).
+  static const int telemetryBufferSize = 1;
 
   // ESP32 saat ini mengirim BLE sekitar 10 Hz.
   static const int telemetrySampleRate = 50;
@@ -995,6 +996,13 @@ class EmerysBleService {
       return;
     }
 
+    // Jika upload sebelumnya belum selesai, buang sample lama dan
+    // simpan hanya yang terbaru supaya data tetap real-time
+    // (tidak menumpuk di antrean).
+    if (_isUploadingTelemetry) {
+      _telemetryBuffer.clear();
+    }
+
     _telemetryBuffer.add(
       sample,
     );
@@ -1137,60 +1145,6 @@ class EmerysBleService {
     };
 
     // ==========================================================
-    // FSR LEFT
-    // ==========================================================
-
-    final fsrLeft = {
-      'rfront': getChannel(
-        'fsr',
-        'left',
-        'rfront',
-      ),
-      'rback': getChannel(
-        'fsr',
-        'left',
-        'rback',
-      ),
-      'lfront': getChannel(
-        'fsr',
-        'left',
-        'lfront',
-      ),
-      'lback': getChannel(
-        'fsr',
-        'left',
-        'lback',
-      ),
-    };
-
-    // ==========================================================
-    // FSR RIGHT
-    // ==========================================================
-
-    final fsrRight = {
-      'rfront': getChannel(
-        'fsr',
-        'right',
-        'rfront',
-      ),
-      'rback': getChannel(
-        'fsr',
-        'right',
-        'rback',
-      ),
-      'lfront': getChannel(
-        'fsr',
-        'right',
-        'lfront',
-      ),
-      'lback': getChannel(
-        'fsr',
-        'right',
-        'lback',
-      ),
-    };
-
-    // ==========================================================
     // GPS
     //
     // Database hanya menyimpan satu koordinat final.
@@ -1274,11 +1228,6 @@ class EmerysBleService {
       'imu': {
         'left': imuLeft,
         'right': imuRight,
-      },
-
-      'fsr': {
-        'left': fsrLeft,
-        'right': fsrRight,
       },
 
       'gps': latestGps,
@@ -1467,6 +1416,11 @@ class EmerysBleService {
       // --------------------------------------------------------
     } finally {
       _isUploadingTelemetry = false;
+
+      // Kirim sample terbaru yang masuk saat upload berjalan.
+      if (_telemetryBuffer.length >= telemetryBufferSize) {
+        _uploadTelemetryWindow();
+      }
     }
   }
 
