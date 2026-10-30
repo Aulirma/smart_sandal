@@ -1,5 +1,7 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import '../theme/app_theme.dart';
 
 class EditProfilePage extends StatefulWidget {
   const EditProfilePage({super.key});
@@ -15,14 +17,33 @@ class _EditProfilePageState extends State<EditProfilePage> {
   final TextEditingController _dobController = TextEditingController();
   final TextEditingController _addressController = TextEditingController();
 
+  bool _isSaving = false;
+
+  User? get _currentUser => FirebaseAuth.instance.currentUser;
+
   @override
   void initState() {
     super.initState();
-    _nameController.text = 'Sarah Ahmad';
-    _dobController.text = '12-05-1995';
-    _emailController.text = 'sarah@email.com';
-    _phoneController.text = '081234567890';
-    _addressController.text = 'Jl. Mawar No. 123, Jakarta';
+
+    // Ambil data riil dari Firebase Auth
+    final user = _currentUser;
+    final displayName = user?.displayName?.trim();
+    final email = user?.email?.trim();
+
+    if (displayName != null && displayName.isNotEmpty) {
+      _nameController.text = displayName;
+    } else if (email != null && email.isNotEmpty) {
+      _nameController.text = email.split('@').first;
+    } else {
+      _nameController.text = '';
+    }
+
+    _emailController.text = email ?? '';
+
+    // Nilai bawaan default untuk field pendukung (bisa diisi pengguna)
+    _dobController.text = '';
+    _phoneController.text = '';
+    _addressController.text = '';
   }
 
   @override
@@ -36,16 +57,23 @@ class _EditProfilePageState extends State<EditProfilePage> {
   }
 
   Future<void> _selectDate(BuildContext context) async {
+    DateTime initialDate = DateTime(1995, 5, 12);
+    if (_dobController.text.isNotEmpty) {
+      try {
+        initialDate = DateFormat('dd-MM-yyyy').parse(_dobController.text);
+      } catch (_) {}
+    }
+
     final DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: DateFormat('dd-MM-yyyy').parse(_dobController.text),
+      initialDate: initialDate,
       firstDate: DateTime(1900),
       lastDate: DateTime.now(),
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.light(
-              primary: Color(0xFF0D8B94),
+            colorScheme: ColorScheme.light(
+              primary: AppTheme.primaryColor,
               onPrimary: Colors.white,
               onSurface: Colors.black87,
             ),
@@ -62,22 +90,47 @@ class _EditProfilePageState extends State<EditProfilePage> {
     }
   }
 
-  void _saveChanges() {
-    if (_nameController.text.isEmpty ||
-        _emailController.text.isEmpty ||
-        _phoneController.text.isEmpty ||
-        _dobController.text.isEmpty ||
-        _addressController.text.isEmpty) {
+  Future<void> _saveChanges() async {
+    final newName = _nameController.text.trim();
+
+    if (newName.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Harap isi semua kolom!')),
+        const SnackBar(content: Text('Nama lengkap wajib diisi!')),
       );
       return;
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Profil berhasil diperbarui')),
-    );
-    Navigator.pop(context);
+    setState(() {
+      _isSaving = true;
+    });
+
+    try {
+      // Update Display Name di Firebase Auth
+      final user = _currentUser;
+      if (user != null) {
+        await user.updateDisplayName(newName);
+        await user.reload();
+      }
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Profil berhasil diperbarui')),
+      );
+
+      Navigator.pop(context);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal memperbarui profil: $e')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSaving = false;
+        });
+      }
+    }
   }
 
   @override
@@ -124,8 +177,12 @@ class _EditProfilePageState extends State<EditProfilePage> {
               ),
               const SizedBox(height: 20),
               _buildInputLabel("Email"),
-              _buildTextField(_emailController, "Masukkan email Anda",
-                  keyboardType: TextInputType.emailAddress),
+              _buildTextField(
+                _emailController,
+                "Masukkan email Anda",
+                keyboardType: TextInputType.emailAddress,
+                readOnly: true, // Email dibaca dari Firebase Auth
+              ),
               const SizedBox(height: 20),
               _buildInputLabel("Nomor Telepon"),
               _buildTextField(_phoneController, "Masukkan nomor telepon aktif Anda",
@@ -138,13 +195,15 @@ class _EditProfilePageState extends State<EditProfilePage> {
                 width: double.infinity,
                 height: 55,
                 child: ElevatedButton(
-                  onPressed: _saveChanges,
+                  onPressed: _isSaving ? null : _saveChanges,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blueAccent,
+                    backgroundColor: AppTheme.primaryColor,
                     shape: const StadiumBorder(),
                     elevation: 0,
                   ),
-                  child: const Text(
+                  child: _isSaving
+                      ? const CircularProgressIndicator(color: Colors.white)
+                      : const Text(
                     'Simpan Perubahan',
                     style: TextStyle(
                         fontSize: 18,
@@ -174,16 +233,18 @@ class _EditProfilePageState extends State<EditProfilePage> {
   }
 
   Widget _buildTextField(
-    TextEditingController controller,
-    String hint, {
-    TextInputType keyboardType = TextInputType.text,
-    bool obscureText = false,
-    Widget? suffixIcon,
-  }) {
+      TextEditingController controller,
+      String hint, {
+        TextInputType keyboardType = TextInputType.text,
+        bool obscureText = false,
+        bool readOnly = false,
+        Widget? suffixIcon,
+      }) {
     return TextFormField(
       controller: controller,
       keyboardType: keyboardType,
       obscureText: obscureText,
+      readOnly: readOnly,
       style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
       decoration: InputDecoration(
         hintText: hint,

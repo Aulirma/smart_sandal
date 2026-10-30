@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'change_password_page.dart';
 import 'edit_profile_page.dart';
@@ -21,7 +22,26 @@ class _PengaturanPageState extends State<PengaturanPage> {
   bool pushNotif = true;
   bool smsDarurat = true;
   bool laporanHarian = true;
-  bool modeGelap = true;
+
+  // Mendapatkan data user yang sedang login dari Firebase Auth
+  User? get _currentUser => FirebaseAuth.instance.currentUser;
+
+  String get _userName {
+    final displayName = _currentUser?.displayName?.trim();
+    if (displayName != null && displayName.isNotEmpty) {
+      return displayName;
+    }
+    final email = _currentUser?.email?.trim();
+    if (email != null && email.isNotEmpty) {
+      final name = email.split('@').first;
+      if (name.isNotEmpty) return name;
+    }
+    return 'Wali';
+  }
+
+  String get _userEmail {
+    return _currentUser?.email ?? 'Belum ada email';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -72,7 +92,7 @@ class _PengaturanPageState extends State<PengaturanPage> {
             child: Icon(
               Icons.arrow_back,
               color: Theme.of(context).colorScheme.onSurface,
-            )
+            ),
           ),
         ),
         const SizedBox(width: 18),
@@ -93,11 +113,13 @@ class _PengaturanPageState extends State<PengaturanPage> {
       child: Column(
         children: [
           InkWell(
-            onTap: () {
-              Navigator.push(
+            onTap: () async {
+              await Navigator.push(
                 context,
                 MaterialPageRoute(builder: (context) => const EditProfilePage()),
               );
+              // Trigger refresh data profil setelah kembali dari edit profile
+              setState(() {});
             },
             borderRadius: BorderRadius.circular(20),
             child: Row(
@@ -121,16 +143,16 @@ class _PengaturanPageState extends State<PengaturanPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Sarah Ahmad',
+                        _userName, // Menggunakan nama dari Firebase Auth
                         style: TextStyle(
                           color: Theme.of(context).colorScheme.onSurface,
                           fontSize: 18,
                           fontWeight: FontWeight.w800,
                         ),
                       ),
-                      SizedBox(height: 4),
+                      const SizedBox(height: 4),
                       Text(
-                        'sarah@email.com',
+                        _userEmail, // Menggunakan email dari Firebase Auth
                         style: TextStyle(
                           color: Theme.of(context).colorScheme.onSurfaceVariant,
                           fontSize: 15,
@@ -288,8 +310,7 @@ class _PengaturanPageState extends State<PengaturanPage> {
             child: _menuTile(
               icon: Icons.help_outline,
               title: 'Bantuan & Dukungan',
-              trailing:
-              Icon(
+              trailing: Icon(
                 Icons.chevron_right,
                 color: Theme.of(context).colorScheme.onSurfaceVariant,
                 size: 20,
@@ -344,17 +365,20 @@ class _PengaturanPageState extends State<PengaturanPage> {
             onPressed: () => Navigator.pop(context),
             child: Text(
               'Batal',
-                style: TextStyle(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                )
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
             ),
           ),
           TextButton(
-            onPressed: () {
+            onPressed: () async {
+              Navigator.pop(context); // Tutup dialog
+              await FirebaseAuth.instance.signOut(); // Sign out dari Firebase
+              if (!context.mounted) return;
               Navigator.pushAndRemoveUntil(
                 context,
                 MaterialPageRoute(builder: (context) => const LoginPage()),
-                (route) => false,
+                    (route) => false,
               );
             },
             child: Text(
@@ -363,7 +387,7 @@ class _PengaturanPageState extends State<PengaturanPage> {
                 color: Theme.of(context).colorScheme.error,
                 fontWeight: FontWeight.bold,
               ),
-            )
+            ),
           ),
         ],
       ),
@@ -381,7 +405,6 @@ class _PengaturanPageState extends State<PengaturanPage> {
           color: Theme.of(context).colorScheme.error,
           size: 28,
         ),
-
         label: Text(
           'Keluar',
           style: TextStyle(

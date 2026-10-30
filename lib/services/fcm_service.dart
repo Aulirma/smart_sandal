@@ -5,6 +5,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 @pragma('vm:entry-point')
 void notificationTapBackground(NotificationResponse notificationResponse) {
@@ -86,10 +88,8 @@ class FcmService {
 
     _foregroundSubscription =
         FirebaseMessaging.onMessage.listen(
-              (RemoteMessage message) {
-            debugPrint(
-              '[FCM] FOREGROUND MESSAGE',
-            );
+              (RemoteMessage message) async {
+            debugPrint('[FCM] FOREGROUND MESSAGE');
 
             debugPrint(
               '[FCM] messageId: ${message.messageId}',
@@ -106,19 +106,95 @@ class FcmService {
             debugPrint(
               '[FCM] data: ${message.data}',
             );
+
+            // ==========================================
+            // EMERYS FALL ALERT
+            // ==========================================
+            if (message.data['type'] == 'fall_alert') {
+              debugPrint(
+                '[EMERYS] FALL ALERT RECEIVED FROM BACKEND',
+              );
+
+              await triggerEmergencyFallAlarm();
+            }
           },
         );
 
     // Token bisa berubah
     FirebaseMessaging.instance.onTokenRefresh.listen(
-          (newToken) {
-        debugPrint(
-          '[FCM] TOKEN REFRESH:',
-        );
-
+          (newToken) async {
+        debugPrint('[FCM] TOKEN REFRESH:');
         debugPrint(newToken);
+
+        try {
+          final user = FirebaseAuth.instance.currentUser;
+
+          if (user == null) {
+            debugPrint('[FCM] Tidak ada user yang sedang login.');
+            return;
+          }
+
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(user.uid)
+              .set(
+            {
+              'fcmToken': newToken,
+            },
+            SetOptions(merge: true),
+          );
+
+          debugPrint(
+            '[FCM] Token refresh berhasil disimpan untuk user ${user.uid}.',
+          );
+        } catch (e) {
+          debugPrint(
+            '[FCM] Gagal menyimpan token refresh: $e',
+          );
+        }
       },
     );
+  }
+
+  Future<void> saveWaliFcmToken() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+
+      if (user == null) {
+        debugPrint(
+          '[FCM] Tidak ada user yang sedang login.',
+        );
+        return;
+      }
+
+      final token = await getToken();
+
+      if (token == null || token.isEmpty) {
+        debugPrint(
+          '[FCM] FCM token kosong.',
+        );
+        return;
+      }
+
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .set(
+        {
+          'fcmToken': token,
+        },
+        SetOptions(merge: true),
+      );
+
+      debugPrint(
+        '[FCM] Token berhasil disimpan '
+            'untuk wali ${user.uid}.',
+      );
+    } catch (e) {
+      debugPrint(
+        '[FCM] Gagal menyimpan FCM token: $e',
+      );
+    }
   }
 
   Future<void> _initLocalNotifications() async {
@@ -162,8 +238,8 @@ class FcmService {
       }
 
       final AndroidNotificationDetails androidPlatformChannelSpecifics =
-          AndroidNotificationDetails(
-        'emerys_emergency_alarm_v1',
+      AndroidNotificationDetails(
+        'emerys_emergency_alarm_v2',
         'EMERYS Emergency Alarm',
         channelDescription: 'Emergency channel for continuous fall detection loops',
         importance: Importance.max,
@@ -173,7 +249,7 @@ class FcmService {
         playSound: true,
         sound: const RawResourceAndroidNotificationSound('emerys_alarm'),
         enableVibration: true,
-        additionalFlags: Int32List.fromList(<int>[4]), // FLAG_INSISTENT loops audio indefinitely
+        additionalFlags: Int32List.fromList(<int>[4]),
         actions: <AndroidNotificationAction>[
           const AndroidNotificationAction(
             'stop_alarm',
@@ -283,6 +359,55 @@ class FcmService {
     );
     debugPrint('[EMERYS TEST] Immediate notification shown');
   }
+
+  //awal manip
+  Future<void> showSimulatedFallNotification() async {
+    debugPrint(
+      '[SIMULASI] Menampilkan notifikasi jatuh.',
+    );
+    const AndroidNotificationDetails
+    androidPlatformChannelSpecifics =
+    AndroidNotificationDetails(
+      'emerys_simulation_fall_v2',
+      'EMERYS Simulasi Jatuh',
+      channelDescription:
+      'Notifikasi simulasi jatuh untuk pengujian aplikasi',
+      importance: Importance.max,
+      priority: Priority.high,
+      showWhen: true,
+      enableVibration: true,
+      playSound: true,
+      sound: const RawResourceAndroidNotificationSound('emerys_alarm'),
+      fullScreenIntent: true,
+      category: AndroidNotificationCategory.alarm,
+    );
+    const NotificationDetails
+    platformChannelSpecifics =
+    NotificationDetails(
+      android: androidPlatformChannelSpecifics,
+    );
+    try {
+      await _localNotifications.show(
+        5001,
+        'Peringatan Jatuh EMERYS',
+        'Lansia terdeteksi mengalami kemungkinan jatuh. '
+            'Segera periksa kondisi lansia.',
+        platformChannelSpecifics,
+        payload: 'simulated_fall',
+      );
+      debugPrint(
+        '[SIMULASI] Notifikasi jatuh berhasil ditampilkan.',
+      );
+    } catch (e, stack) {
+      debugPrint(
+        '[SIMULASI] Gagal menampilkan notifikasi: $e',
+      );
+      debugPrint(
+        '[SIMULASI] Stack trace: $stack',
+      );
+    }
+  }
+  //akhir manip
 
   // TEST MODE ONLY
   // TODO: Replace scheduled notification with real EMERYS fall detection event.

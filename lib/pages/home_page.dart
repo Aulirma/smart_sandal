@@ -3,7 +3,8 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 import '../services/backend_api_service.dart';
 import '../services/firestore_monitoring_service.dart';
 import '../theme/app_theme.dart';
@@ -27,62 +28,39 @@ class _HomePageState extends State<HomePage> {
   final FirestoreMonitoringService _monitoringService =
       FirestoreMonitoringService.instance;
 
-  String? _getTinyMLActivity(
-      Map<String, dynamic>? telemetry,
-      ) {
-    if (telemetry == null) {
-      return null;
-    }
+  String? _getTinyMLActivity(Map<String, dynamic>? telemetry) {
+    if (telemetry == null) return null;
     final tinyml = telemetry['tinyml'];
-    if (tinyml is! Map) {
-      return null;
-    }
+    if (tinyml is! Map) return null;
     final activity = tinyml['activity'];
-    if (activity is! String) {
-      return null;
-    }
+    if (activity is! String) return null;
     return activity.trim();
   }
 
   bool _isFallActivity(String? activity) {
-    return activity == 'jatuh_debel' ||
-        activity == 'jatuh_samping';
+    return activity == 'jatuh_debel' || activity == 'jatuh_samping';
   }
 
-  void _checkForFall(
-      Map<String, dynamic>? telemetry,
-      ) {
+  void _checkForFall(Map<String, dynamic>? telemetry) {
     final activity = _getTinyMLActivity(telemetry);
-    if (activity == null) {
-      return;
-    }
-    debugPrint(
-      '[HomePage] TinyML activity: $activity',
-    );
+    if (activity == null) return;
+
+    debugPrint('[HomePage] TinyML activity: $activity');
     final isFall = _isFallActivity(activity);
-    // Simpan activity terakhir
+
     if (!isFall) {
       _lastTinyMLActivity = activity;
       return;
     }
-    // Jangan proses kalau sedang mengirim event
-    if (_fallEventProcessing) {
-      return;
-    }
-    // Cegah satu kondisi jatuh dikirim berkali-kali
-    if (_isSameFallActivity(activity)) {
-      return;
-    }
-    // Cooldown
+
+    if (_fallEventProcessing) return;
+    if (_isSameFallActivity(activity)) return;
     if (_isFallCooldownActive()) {
-      debugPrint(
-        '[HomePage] Fall alert masih dalam cooldown.',
-      );
+      debugPrint('[HomePage] Fall alert masih dalam cooldown.');
       return;
     }
-    debugPrint(
-      '[HomePage] FALL TERDETEKSI: $activity',
-    );
+
+    debugPrint('[HomePage] FALL TERDETEKSI: $activity');
     _lastTinyMLActivity = activity;
     _lastFallDetectedAt = DateTime.now();
     _sendFallEvent(telemetry);
@@ -94,100 +72,33 @@ class _HomePageState extends State<HomePage> {
   }
 
   bool _isFallCooldownActive() {
-    if (_lastFallDetectedAt == null) {
-      return false;
-    }
-
-    final elapsed =
-    DateTime.now().difference(_lastFallDetectedAt!);
-
+    if (_lastFallDetectedAt == null) return false;
+    final elapsed = DateTime.now().difference(_lastFallDetectedAt!);
     return elapsed < _fallAlertCooldown;
   }
 
-  Future<void> _sendFallEvent(
-      Map<String, dynamic>? telemetry,
-      ) async {
-    if (telemetry == null) {
-      debugPrint(
-        '[HomePage] Fall event dibatalkan: telemetry null.',
-      );
-      return;
-    }
-
-    if (_elderlyId == null ||
-        _elderlyId!.isEmpty) {
-      debugPrint(
-        '[HomePage] Fall event dibatalkan: elderlyId tidak tersedia.',
-      );
-      return;
-    }
-
-    if (_deviceId == null ||
+  Future<void> _sendFallEvent(Map<String, dynamic>? telemetry) async {
+    if (telemetry == null ||
+        _elderlyId == null ||
+        _elderlyId!.isEmpty ||
+        _deviceId == null ||
         _deviceId!.isEmpty) {
-      debugPrint(
-        '[HomePage] Fall event dibatalkan: deviceId tidak tersedia.',
-      );
+      debugPrint('[HomePage] Fall event dibatalkan: Data tidak lengkap.');
       return;
     }
 
     _fallEventProcessing = true;
 
     try {
-      final tinyml = telemetry['tinyml'];
-
-      String? activity;
-      double? confidence;
-
-      if (tinyml is Map) {
-        final rawActivity = tinyml['activity'];
-
-        if (rawActivity is String) {
-          activity = rawActivity.trim();
-        }
-
-        final rawConfidence = tinyml['confidence'];
-
-        if (rawConfidence is num) {
-          confidence = rawConfidence.toDouble();
-        }
-      }
-
-      debugPrint(
-        '[HomePage] Mengirim FALL EVENT',
-      );
-
-      debugPrint(
-        'activity: $activity',
-      );
-
-      debugPrint(
-        'confidence: $confidence',
-      );
-
-      debugPrint(
-        'deviceId: $_deviceId',
-      );
-
-      debugPrint(
-        'elderlyId: $_elderlyId',
-      );
-
       final gps = telemetry['gps'];
-
       double? latitude;
       double? longitude;
 
       if (gps is Map) {
         final rawLatitude = gps['latitude'];
         final rawLongitude = gps['longitude'];
-
-        if (rawLatitude is num) {
-          latitude = rawLatitude.toDouble();
-        }
-
-        if (rawLongitude is num) {
-          longitude = rawLongitude.toDouble();
-        }
+        if (rawLatitude is num) latitude = rawLatitude.toDouble();
+        if (rawLongitude is num) longitude = rawLongitude.toDouble();
       }
 
       await _api.sendFallEvent(
@@ -196,13 +107,9 @@ class _HomePageState extends State<HomePage> {
         longitude: longitude,
       );
 
-      debugPrint(
-        '[HomePage] FALL EVENT BERHASIL DIKIRIM',
-      );
+      debugPrint('[HomePage] FALL EVENT BERHASIL DIKIRIM KE BACKEND');
     } catch (e) {
-      debugPrint(
-        '[HomePage] GAGAL MENGIRIM FALL EVENT: $e',
-      );
+      debugPrint('[HomePage] GAGAL MENGIRIM FALL EVENT: $e');
     } finally {
       _fallEventProcessing = false;
     }
@@ -220,56 +127,36 @@ class _HomePageState extends State<HomePage> {
   bool _fallEventProcessing = false;
 
   DateTime? _lastFallDetectedAt;
+  static const Duration _fallAlertCooldown = Duration(seconds: 30);
 
-  static const Duration _fallAlertCooldown =
-  Duration(seconds: 30);
+  StreamSubscription? _profileSubscription;
+  StreamSubscription? _telemetrySubscription;
 
-  StreamSubscription<
-      DocumentSnapshot<Map<String, dynamic>>>? _profileSubscription;
-
-  StreamSubscription<Map<String, dynamic>?>?
-    _telemetrySubscription;
-
-  static const Duration _deviceOfflineThreshold =
-    Duration(minutes: 2);
+  static const Duration _deviceOfflineThreshold = Duration(minutes: 2);
 
   DateTime? _parseLastSeen(dynamic value) {
-    if (value == null) {
-      return null;
-    }
-
-    if (value is Timestamp) {
-      return value.toDate();
-    }
-
-    if (value is DateTime) {
-      return value;
-    }
-
-    if (value is String) {
-      return DateTime.tryParse(value);
-    }
-
+    if (value == null) return null;
+    if (value is Timestamp) return value.toDate();
+    if (value is DateTime) return value;
+    if (value is String) return DateTime.tryParse(value);
     return null;
   }
 
+  String _formatTimeAgo(DateTime? time) {
+    if (time == null) return 'Belum tersedia';
+    final difference = DateTime.now().difference(time);
+    if (difference.inSeconds < 60) return 'beberapa detik lalu';
+    if (difference.inMinutes < 60) return '${difference.inMinutes} menit lalu';
+    if (difference.inHours < 24) return '${difference.inHours} jam lalu';
+    if (difference.inDays < 30) return '${difference.inDays} hari lalu';
+    return 'lebih dari 30 hari lalu';
+  }
+
   bool get _isDeviceConnected {
-    if (_deviceId == null || _deviceId!.isEmpty) {
-      return false;
-    }
-
-    final lastSeen = _parseLastSeen(
-      _latestTelemetry?['lastSeen'],
-    );
-
-    if (lastSeen == null) {
-      return false;
-    }
-
-    final difference =
-    DateTime.now().difference(lastSeen);
-
-    return difference <= _deviceOfflineThreshold;
+    if (_deviceId == null || _deviceId!.isEmpty) return false;
+    final lastSeen = _parseLastSeen(_latestTelemetry?['lastSeen']);
+    if (lastSeen == null) return false;
+    return DateTime.now().difference(lastSeen) <= _deviceOfflineThreshold;
   }
 
   @override
@@ -295,44 +182,27 @@ class _HomePageState extends State<HomePage> {
 
       if (!mounted) return;
 
-      if (data['exists'] == true) {
-        final elderlyId =
-        data['elderlyId']?.toString();
+      if (data != null && data is Map && data['exists'] == true) {
+        final elderlyId = data['elderlyId']?.toString();
 
         setState(() {
           _hasElderly = true;
           _elderlyId = elderlyId;
-          _elderlyName =
-              data['name']?.toString();
-          _elderlyAge =
-              _parseAge(data['age']);
-          _deviceId =
-              _cleanDeviceId(data['deviceId']);
+          _elderlyName = data['name']?.toString();
+          _elderlyAge = _parseAge(data['age']);
+          _deviceId = _cleanDeviceId(data['deviceId']);
         });
 
-        if (elderlyId != null &&
-            elderlyId.isNotEmpty) {
-          _listenToElderlyProfile(
-            elderlyId,
-          );
+        if (elderlyId != null && elderlyId.isNotEmpty) {
+          _listenToElderlyProfile(elderlyId);
         }
       } else {
         _clearElderlyData();
       }
     } catch (e) {
-      debugPrint(
-        '[HomePage] Gagal mengambil profil: $e',
-      );
-
+      debugPrint('[HomePage] Gagal mengambil profil: $e');
       if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Gagal mengambil data lansia: $e',
-          ),
-        ),
-      );
+      _clearElderlyData();
     } finally {
       if (mounted) {
         setState(() {
@@ -346,80 +216,57 @@ class _HomePageState extends State<HomePage> {
   // FIRESTORE REALTIME
   // ============================================================
 
-  void _listenToElderlyProfile(
-      String elderlyId,
-      ) {
+  void _listenToElderlyProfile(String elderlyId) {
     _profileSubscription?.cancel();
 
-    debugPrint(
-      '[HomePage] Listening elderly_profiles/$elderlyId',
-    );
+    debugPrint('[HomePage] Listening elderly_profiles/$elderlyId');
 
-    _profileSubscription = FirebaseFirestore
-        .instance
+    _profileSubscription = FirebaseFirestore.instance
         .collection('elderly_profiles')
         .doc(elderlyId)
         .snapshots()
         .listen(
           (snapshot) {
-            if (!snapshot.exists) {
-              _telemetrySubscription?.cancel();
-              _telemetrySubscription = null;
+        if (!snapshot.exists) {
+          _telemetrySubscription?.cancel();
+          _telemetrySubscription = null;
 
-              if (!mounted) return;
+          if (!mounted) return;
 
-              setState(() {
-                _hasElderly = false;
-                _elderlyId = null;
-                _elderlyName = null;
-                _elderlyAge = null;
-                _deviceId = null;
-                _latestTelemetry = null;
-              });
-
-              return;
-            }
+          setState(() {
+            _hasElderly = false;
+            _elderlyId = null;
+            _elderlyName = null;
+            _elderlyAge = null;
+            _deviceId = null;
+            _latestTelemetry = null;
+          });
+          return;
+        }
 
         final data = snapshot.data();
-
         if (data == null) return;
 
-        final deviceId =
-        _cleanDeviceId(data['deviceId']);
-
-        debugPrint(
-          '[HomePage] Firestore update '
-              'deviceId=$deviceId',
-        );
+        final deviceId = _cleanDeviceId(data['deviceId']);
 
         if (!mounted) return;
 
-        final deviceChanged =
-            _deviceId != deviceId;
+        final deviceChanged = _deviceId != deviceId;
 
         setState(() {
           _hasElderly = true;
           _elderlyId = snapshot.id;
-          _elderlyName =
-              data['name']?.toString();
-          _elderlyAge =
-              _parseAge(data['age']);
+          _elderlyName = data['name']?.toString();
+          _elderlyAge = _parseAge(data['age']);
           _deviceId = deviceId;
         });
 
-        if (deviceChanged) {
-          if (deviceId != null &&
-              deviceId.isNotEmpty) {
-
-            _listenToLatestTelemetry(
-              deviceId,
-            );
-
+        if (deviceChanged || _telemetrySubscription == null) {
+          if (deviceId != null && deviceId.isNotEmpty) {
+            _listenToLatestTelemetry(deviceId);
           } else {
             _telemetrySubscription?.cancel();
-
             _telemetrySubscription = null;
-
             setState(() {
               _latestTelemetry = null;
             });
@@ -427,139 +274,52 @@ class _HomePageState extends State<HomePage> {
         }
       },
       onError: (error) {
-        debugPrint(
-          '[HomePage] Firestore listener error: $error',
-        );
+        debugPrint('[HomePage] Firestore listener error: $error');
       },
     );
   }
 
   // ============================================================
-// FIRESTORE REALTIME TELEMETRY
-// ============================================================
+  // FIRESTORE REALTIME TELEMETRY
+  // ============================================================
 
-  void _listenToLatestTelemetry(
-      String deviceId,
-      ) {
+  void _listenToLatestTelemetry(String deviceId) {
     _telemetrySubscription?.cancel();
 
     final cleanDeviceId = deviceId.trim();
 
     if (cleanDeviceId.isEmpty) {
-      debugPrint(
-        '[HomePage] Tidak ada deviceId untuk monitoring.',
-      );
-
       if (mounted) {
         setState(() {
           _latestTelemetry = null;
         });
       }
-
       return;
     }
 
-    debugPrint(
-      '[HomePage] Listening latest telemetry: '
-          'device_telemetry/$cleanDeviceId/latest/current',
+    _telemetrySubscription = _monitoringService
+        .watchLatestTelemetry(cleanDeviceId)
+        .listen(
+          (data) {
+        if (!mounted) return;
+
+        if (data == null) {
+          setState(() {
+            _latestTelemetry = null;
+          });
+          return;
+        }
+
+        _checkForFall(data);
+
+        setState(() {
+          _latestTelemetry = Map<String, dynamic>.from(data);
+        });
+      },
+      onError: (error) {
+        debugPrint('[HomePage] Telemetry listener error: $error');
+      },
     );
-
-    _telemetrySubscription =
-        _monitoringService
-            .watchLatestTelemetry(cleanDeviceId)
-            .listen(
-              (data) {
-            if (!mounted) return;
-
-            if (data == null) {
-              debugPrint('[HomePage] latest/current belum tersedia.');
-
-              setState(() {
-                _latestTelemetry = null;
-              });
-
-              return;
-            }
-
-            debugPrint('[HomePage] TELEMETRY UPDATE');
-            debugPrint('deviceId: ${data['deviceId']}');
-            debugPrint('sequence: ${data['sequence']}');
-            debugPrint('status: ${data['status']}');
-            debugPrint('lastSeen: ${data['lastSeen']}');
-
-            // Cek TinyML
-            _checkForFall(data);
-
-            setState(() {
-              _latestTelemetry =
-              Map<String, dynamic>.from(data);
-            });
-
-            debugPrint(
-              '[HomePage] TELEMETRY UPDATE',
-            );
-
-            debugPrint(
-              'deviceId: ${data['deviceId']}',
-            );
-
-            debugPrint(
-              'sequence: ${data['sequence']}',
-            );
-
-            debugPrint(
-              'status: ${data['status']}',
-            );
-
-            debugPrint(
-              'lastSeen: ${data['lastSeen']}',
-            );
-
-            final lastSeen = _parseLastSeen(
-              data['lastSeen'],
-            );
-
-            if (lastSeen != null) {
-              final age =
-              DateTime.now().difference(lastSeen);
-
-              debugPrint(
-                'lastSeen age: ${age.inSeconds} detik',
-              );
-
-              debugPrint(
-                'HomePage status: '
-                    '${age <= _deviceOfflineThreshold ? 'Aktif' : 'Offline'}',
-              );
-            }
-
-            debugPrint(
-              'deviceId: ${data['deviceId']}',
-            );
-
-            debugPrint(
-              'sequence: ${data['sequence']}',
-            );
-
-            debugPrint(
-              'status: ${data['status']}',
-            );
-
-            debugPrint(
-              'lastSeen: ${data['lastSeen']}',
-            );
-
-            setState(() {
-              _latestTelemetry =
-              Map<String, dynamic>.from(data);
-            });
-          },
-          onError: (error) {
-            debugPrint(
-              '[HomePage] Telemetry listener error: $error',
-            );
-          },
-        );
   }
 
   void _clearElderlyData() {
@@ -578,194 +338,38 @@ class _HomePageState extends State<HomePage> {
 
   int? _parseAge(dynamic value) {
     if (value == null) return null;
-
     if (value is int) return value;
-
-    return int.tryParse(
-      value.toString(),
-    );
+    return int.tryParse(value.toString());
   }
 
   String? _cleanDeviceId(dynamic value) {
     if (value == null) return null;
-
     final result = value.toString().trim();
-
-    if (result.isEmpty ||
-        result == 'null') {
-      return null;
-    }
-
+    if (result.isEmpty || result == 'null') return null;
     return result;
   }
 
-  // ============================================================
-  // GREETING
-  // ============================================================
-
-  String _getGreeting() {
-    final hour = DateTime.now().hour;
-
-    if (hour >= 4 && hour < 11) {
-      return 'Selamat Pagi';
-    }
-
-    if (hour >= 11 && hour < 15) {
-      return 'Selamat Siang';
-    }
-
-    if (hour >= 15 && hour < 18) {
-      return 'Selamat Sore';
-    }
-
-    return 'Selamat Malam';
-  }
-
   String _getWaliName() {
-    final user =
-        FirebaseAuth.instance.currentUser;
+    final user = FirebaseAuth.instance.currentUser;
+    final displayName = user?.displayName?.trim();
+    if (displayName != null && displayName.isNotEmpty) return displayName;
 
-    final displayName =
-    user?.displayName?.trim();
-
-    if (displayName != null &&
-        displayName.isNotEmpty) {
-      return displayName;
+    final email = user?.email?.trim();
+    if (email != null && email.isNotEmpty) {
+      final name = email.split('@').first;
+      if (name.isNotEmpty) return name;
     }
-
-    final email =
-    user?.email?.trim();
-
-    if (email != null &&
-        email.isNotEmpty) {
-      final name =
-          email.split('@').first;
-
-      if (name.isNotEmpty) {
-        return name;
-      }
-    }
-
     return 'Wali';
   }
-
-  // ============================================================
-  // BUILD
-  // ============================================================
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor:
-      Theme.of(context).scaffoldBackgroundColor,
-
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         child: _isLoading
-            ? const Center(
-          child: CircularProgressIndicator(),
-        )
-            : _buildDashboard(context),
-      ),
-    );
-  }
-
-  // ============================================================
-  // EMPTY STATE
-  // ============================================================
-
-  Widget _buildEmptyState(
-      BuildContext context,
-      ) {
-    return Center(
-      child: SingleChildScrollView(
-        padding:
-        const EdgeInsets.all(24),
-        child: Column(
-          mainAxisAlignment:
-          MainAxisAlignment.center,
-          children: [
-            const SizedBox(height: 40),
-
-            Container(
-              width: 100,
-              height: 100,
-              decoration: BoxDecoration(
-                color: AppTheme.primaryColor
-                    .withValues(alpha: 0.1),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                Icons.person_outline,
-                size: 52,
-                color:
-                AppTheme.primaryColor,
-              ),
-            ),
-
-            const SizedBox(height: 24),
-
-            Text(
-              'Belum Ada Profil Lansia',
-              textAlign:
-              TextAlign.center,
-              style: TextStyle(
-                fontSize: 21,
-                fontWeight:
-                FontWeight.bold,
-                color: Theme.of(context)
-                    .colorScheme
-                    .onSurface,
-              ),
-            ),
-
-            const SizedBox(height: 10),
-
-            Text(
-              'Tambahkan profil lansia terlebih dahulu '
-                  'untuk mulai menggunakan EMERYS.',
-              textAlign:
-              TextAlign.center,
-              style: TextStyle(
-                fontSize: 14,
-                height: 1.5,
-                color: Theme.of(context)
-                    .colorScheme
-                    .onSurfaceVariant,
-              ),
-            ),
-
-            const SizedBox(height: 28),
-
-            SizedBox(
-              width: 240,
-              height: 50,
-              child: ElevatedButton(
-                onPressed:
-                widget.onAddElderlyPressed,
-                style:
-                ElevatedButton.styleFrom(
-                  backgroundColor:
-                  AppTheme.primaryColor,
-                  foregroundColor:
-                  Colors.white,
-                  elevation: 0,
-                  shape:
-                  const StadiumBorder(),
-                ),
-                child: const Text(
-                  '+ Tambah Profil Lansia',
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight:
-                    FontWeight.bold,
-                  ),
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 40),
-          ],
-        ),
+            ? const Center(child: CircularProgressIndicator())
+            : _buildDashboard(context), // SELALU RENDER DASHBOARD UTAMA
       ),
     );
   }
@@ -774,65 +378,34 @@ class _HomePageState extends State<HomePage> {
   // DASHBOARD
   // ============================================================
 
-  Widget _buildDashboard(
-      BuildContext context,
-      ) {
+  Widget _buildDashboard(BuildContext context) {
     return RefreshIndicator(
-      onRefresh:
-      _loadElderlyProfile,
-      child:
-      SingleChildScrollView(
-        physics:
-        const AlwaysScrollableScrollPhysics(),
+      onRefresh: _loadElderlyProfile,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
         child: Column(
-          crossAxisAlignment:
-          CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _buildHeader(context),
-
             Padding(
-              padding:
-              const EdgeInsets.all(20),
+              padding: const EdgeInsets.all(20),
               child: Column(
-                crossAxisAlignment:
-                CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildLiveLocation(
-                    context,
-                  ),
-
-                  const SizedBox(
-                    height: 24,
-                  ),
-
-                  _buildMetricsRow(
-                    context,
-                  ),
-
-                  const SizedBox(
-                    height: 24,
-                  ),
-
+                  _buildLiveLocation(context),
+                  const SizedBox(height: 24),
+                  _buildMetricsRow(context),
+                  const SizedBox(height: 24),
                   Text(
                     'Aktivitas Hari Ini',
                     style: TextStyle(
                       fontSize: 18,
-                      fontWeight:
-                      FontWeight.bold,
-                      color:
-                      Theme.of(context)
-                          .colorScheme
-                          .onSurface,
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).colorScheme.onSurface,
                     ),
                   ),
-
-                  const SizedBox(
-                    height: 16,
-                  ),
-
-                  _buildActivityTimeline(
-                    context,
-                  ),
+                  const SizedBox(height: 16),
+                  _buildActivityTimeline(context),
                 ],
               ),
             ),
@@ -846,154 +419,73 @@ class _HomePageState extends State<HomePage> {
   // HEADER
   // ============================================================
 
-  Widget _buildHeader(
-      BuildContext context,
-      ) {
+  Widget _buildHeader(BuildContext context) {
     return Container(
       width: double.infinity,
-      decoration:
-      const BoxDecoration(
+      decoration: const BoxDecoration(
         gradient: LinearGradient(
-          begin:
-          Alignment.topLeft,
-          end:
-          Alignment.bottomRight,
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
           colors: [
             Color(0xFF0D9488),
             Color(0xFF0284C7),
           ],
         ),
-        borderRadius:
-        BorderRadius.only(
-          bottomLeft:
-          Radius.circular(40),
-          bottomRight:
-          Radius.circular(40),
+        borderRadius: BorderRadius.only(
+          bottomLeft: Radius.circular(40),
+          bottomRight: Radius.circular(40),
         ),
       ),
-      padding:
-      const EdgeInsets.fromLTRB(
-        24,
-        36,
-        24,
-        40,
-      ),
+      padding: const EdgeInsets.fromLTRB(24, 36, 24, 40),
       child: Column(
-        crossAxisAlignment:
-        CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            mainAxisAlignment:
-            MainAxisAlignment
-                .spaceBetween,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Expanded(
                 child: Column(
-                  crossAxisAlignment:
-                  CrossAxisAlignment
-                      .start,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
                       'Selamat Datang 👋',
-                      style:
-                      TextStyle(
-                        color:
-                        Colors.white70,
+                      style: TextStyle(
+                        color: Colors.white70,
                         fontSize: 16,
                       ),
                     ),
-
-                    const SizedBox(
-                        height: 2),
-
+                    const SizedBox(height: 2),
                     Text(
                       'Dasbor ${_getWaliName()}',
                       maxLines: 1,
-                      overflow:
-                      TextOverflow
-                          .ellipsis,
-                      style:
-                      const TextStyle(
-                        color:
-                        Colors.white,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
                         fontSize: 24,
-                        fontWeight:
-                        FontWeight.bold,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
                   ],
                 ),
               ),
-
               GestureDetector(
-                onTap: widget
-                    .onNotificationPressed,
-                child: Stack(
-                  clipBehavior:
-                  Clip.none,
-                  children: [
-                    Container(
-                      padding:
-                      const EdgeInsets
-                          .all(8),
-                      decoration:
-                      BoxDecoration(
-                        color: Colors
-                            .white
-                            .withValues(
-                          alpha: 0.2,
-                        ),
-                        shape:
-                        BoxShape.circle,
-                      ),
-                      child:
-                      const Icon(
-                        Icons
-                            .notifications_none,
-                        color:
-                        Colors.white,
-                      ),
-                    ),
-
-                    Positioned(
-                      right: -2,
-                      top: -2,
-                      child:
-                      Container(
-                        padding:
-                        const EdgeInsets
-                            .all(4),
-                        decoration:
-                        const BoxDecoration(
-                          color: Colors.red,
-                          shape:
-                          BoxShape.circle,
-                        ),
-                        child:
-                        const Text(
-                          '3',
-                          style:
-                          TextStyle(
-                            color:
-                            Colors.white,
-                            fontSize:
-                            10,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
+                onTap: widget.onNotificationPressed,
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.2),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.notifications_none,
+                    color: Colors.white,
+                  ),
                 ),
               ),
             ],
           ),
-
-          const SizedBox(
-              height: 24),
-
-          _buildElderlySummaryCard(
-            context,
-          ),
+          const SizedBox(height: 24),
+          _buildElderlySummaryCard(context),
         ],
       ),
     );
@@ -1003,9 +495,7 @@ class _HomePageState extends State<HomePage> {
   // ELDERLY SUMMARY CARD
   // ============================================================
 
-  Widget _buildElderlySummaryCard(
-      BuildContext context,
-      ) {
+  Widget _buildElderlySummaryCard(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -1025,9 +515,22 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _buildElderlyInfo(
-      BuildContext context,
-      ) {
+  Widget _buildElderlyInfo(BuildContext context) {
+    final lastSeen = _parseLastSeen(_latestTelemetry?['lastSeen']);
+    final tinyml = _latestTelemetry?['tinyml'];
+
+    String stabilityText = 'Belum tersedia';
+    String fallRiskText = 'Belum tersedia';
+
+    if (tinyml is Map) {
+      if (tinyml['stability'] != null) {
+        stabilityText = tinyml['stability'].toString();
+      }
+      if (tinyml['fallRisk'] != null) {
+        fallRiskText = tinyml['fallRisk'].toString();
+      }
+    }
+
     return Column(
       children: [
         Row(
@@ -1035,8 +538,7 @@ class _HomePageState extends State<HomePage> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: const Color(0xFF2DD4BF)
-                    .withValues(alpha: 0.2),
+                color: const Color(0xFF2DD4BF).withValues(alpha: 0.2),
                 shape: BoxShape.circle,
               ),
               child: const Icon(
@@ -1044,76 +546,57 @@ class _HomePageState extends State<HomePage> {
                 color: Color(0xFF0D9488),
               ),
             ),
-
             const SizedBox(width: 16),
-
             Expanded(
               child: Column(
-                crossAxisAlignment:
-                CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     _elderlyName ?? 'Lansia',
                     maxLines: 1,
-                    overflow:
-                    TextOverflow.ellipsis,
+                    overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       fontSize: 18,
-                      fontWeight:
-                      FontWeight.bold,
-                      color: Theme.of(context)
-                          .colorScheme
-                          .onSurface,
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).colorScheme.onSurface,
                     ),
                   ),
-
                   if (_elderlyAge != null)
                     Text(
                       'Usia $_elderlyAge tahun',
                       style: TextStyle(
-                        color: Theme.of(context)
-                            .colorScheme
-                            .onSurfaceVariant,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                         fontSize: 13,
                       ),
                     ),
-
                   const SizedBox(height: 2),
-
                   Text(
-                    'Terakhir aktif: Belum tersedia',
+                    'Terakhir aktif: ${_formatTimeAgo(lastSeen)}',
                     style: TextStyle(
-                      color: Theme.of(context)
-                          .colorScheme
-                          .onSurfaceVariant,
-                      fontSize: 13,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      fontSize: 12,
                     ),
                   ),
                 ],
               ),
             ),
-
             _buildDeviceStatusBadge(context),
           ],
         ),
-
         const SizedBox(height: 20),
-
         Row(
           children: [
             _buildStatusSubCard(
               icon: Icons.directions_walk,
               label: 'Stabilitas Langkah',
-              value: 'Belum tersedia',
+              value: stabilityText,
               color: const Color(0xFF0D9488),
             ),
-
             const SizedBox(width: 12),
-
             _buildStatusSubCard(
               icon: Icons.warning_amber_rounded,
               label: 'Risiko Jatuh',
-              value: 'Belum tersedia',
+              value: fallRiskText,
               color: const Color(0xFF0D9488),
             ),
           ],
@@ -1122,69 +605,47 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _buildAddElderlyContent(
-      BuildContext context,
-      ) {
+  Widget _buildAddElderlyContent(BuildContext context) {
     return Column(
       children: [
         const SizedBox(height: 4),
-
         Icon(
           Icons.person_add_alt_1,
           size: 42,
-          color: const Color(0xFF0D9488)
-              .withValues(alpha: 0.8),
+          color: const Color(0xFF0D9488).withValues(alpha: 0.8),
         ),
-
         const SizedBox(height: 12),
-
         Text(
           'Belum Ada Profil Lansia',
           textAlign: TextAlign.center,
           style: TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.bold,
-            color: Theme.of(context)
-                .colorScheme
-                .onSurface,
+            color: Theme.of(context).colorScheme.onSurface,
           ),
         ),
-
         const SizedBox(height: 6),
-
         Text(
-          'Tambahkan profil lansia untuk mulai '
-              'menggunakan EMERYS.',
+          'Tambahkan profil lansia untuk mulai menggunakan EMERYS.',
           textAlign: TextAlign.center,
           style: TextStyle(
             fontSize: 13,
             height: 1.4,
-            color: Theme.of(context)
-                .colorScheme
-                .onSurfaceVariant,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
           ),
         ),
-
         const SizedBox(height: 16),
-
         SizedBox(
           width: double.infinity,
           child: ElevatedButton(
-            onPressed:
-            widget.onAddElderlyPressed,
+            onPressed: widget.onAddElderlyPressed,
             style: ElevatedButton.styleFrom(
-              backgroundColor:
-              const Color(0xFF0D9488),
+              backgroundColor: const Color(0xFF0D9488),
               foregroundColor: Colors.white,
               elevation: 0,
-              padding:
-              const EdgeInsets.symmetric(
-                vertical: 14,
-              ),
-              shape:
-              RoundedRectangleBorder(
-                borderRadius:
-                BorderRadius.circular(16),
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
               ),
             ),
             child: const Text(
@@ -1201,60 +662,36 @@ class _HomePageState extends State<HomePage> {
   }
 
   String get _deviceStatusText {
-    if (_deviceId == null || _deviceId!.isEmpty) {
-      return 'Belum Terhubung';
-    }
-
-    final lastSeen = _parseLastSeen(
-      _latestTelemetry?['lastSeen'],
-    );
-
-    if (lastSeen == null) {
-      return 'Menunggu Data';
-    }
-
-    final difference =
-    DateTime.now().difference(lastSeen);
-
-    if (difference <= _deviceOfflineThreshold) {
-      return 'Aktif';
-    }
-
-    return 'Offline';
+    if (_deviceId == null || _deviceId!.isEmpty) return 'Belum Terhubung';
+    final lastSeen = _parseLastSeen(_latestTelemetry?['lastSeen']);
+    if (lastSeen == null) return 'Menunggu Data';
+    return DateTime.now().difference(lastSeen) <= _deviceOfflineThreshold
+        ? 'Aktif'
+        : 'Offline';
   }
 
-  Widget _buildDeviceStatusBadge(
-      BuildContext context,
-      ) {
-
+  Widget _buildDeviceStatusBadge(BuildContext context) {
     final status = _deviceStatusText;
-
     final Color dotColor;
     final Color backgroundColor;
     final Color textColor;
 
     if (status == 'Aktif') {
       dotColor = const Color(0xFF2DD4BF);
-      backgroundColor =
-          AppTheme.primaryColor.withValues(alpha: 0.15);
+      backgroundColor = AppTheme.primaryColor.withValues(alpha: 0.15);
       textColor = const Color(0xFF0D9488);
     } else if (status == 'Offline') {
       dotColor = Colors.red;
-      backgroundColor =
-          Colors.red.withValues(alpha: 0.10);
+      backgroundColor = Colors.red.withValues(alpha: 0.10);
       textColor = Colors.red;
     } else {
       dotColor = Colors.orange;
-      backgroundColor =
-          Colors.orange.withValues(alpha: 0.12);
+      backgroundColor = Colors.orange.withValues(alpha: 0.12);
       textColor = Colors.orange;
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 12,
-        vertical: 6,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
         color: backgroundColor,
         borderRadius: BorderRadius.circular(20),
@@ -1265,14 +702,9 @@ class _HomePageState extends State<HomePage> {
           Container(
             width: 8,
             height: 8,
-            decoration: BoxDecoration(
-              color: dotColor,
-              shape: BoxShape.circle,
-            ),
+            decoration: BoxDecoration(color: dotColor, shape: BoxShape.circle),
           ),
-
           const SizedBox(width: 6),
-
           Text(
             status,
             style: TextStyle(
@@ -1298,65 +730,38 @@ class _HomePageState extends State<HomePage> {
   }) {
     return Expanded(
       child: Container(
-        padding:
-        const EdgeInsets.all(12),
-        decoration:
-        BoxDecoration(
-          color: color.withValues(
-            alpha: 0.08,
-          ),
-          borderRadius:
-          BorderRadius.circular(
-            16,
-          ),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(16),
         ),
         child: Column(
-          crossAxisAlignment:
-          CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                Icon(
-                  icon,
-                  size: 16,
-                  color: color.withValues(
-                    alpha: 0.6,
-                  ),
-                ),
-
-                const SizedBox(
-                    width: 4),
-
+                Icon(icon, size: 16, color: color.withValues(alpha: 0.6)),
+                const SizedBox(width: 4),
                 Expanded(
                   child: Text(
                     label,
                     maxLines: 1,
-                    overflow:
-                    TextOverflow
-                        .ellipsis,
-                    style:
-                    TextStyle(
-                      color:
-                      color.withValues(
-                        alpha: 0.7,
-                      ),
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: color.withValues(alpha: 0.7),
                       fontSize: 11,
                     ),
                   ),
                 ),
               ],
             ),
-
-            const SizedBox(
-                height: 4),
-
+            const SizedBox(height: 4),
             Text(
               value,
               style: TextStyle(
                 color: color,
-                fontSize: 16,
-                fontWeight:
-                FontWeight.bold,
+                fontSize: 15,
+                fontWeight: FontWeight.bold,
               ),
             ),
           ],
@@ -1369,279 +774,204 @@ class _HomePageState extends State<HomePage> {
   // LIVE LOCATION
   // ============================================================
 
-  Widget _buildLiveLocation(
-      BuildContext context,
-      ) {
-    final hasDevice =
-        _isDeviceConnected;
+  Widget _buildLiveLocation(BuildContext context) {
+    final gps = _latestTelemetry?['gps'];
+    double? latitude;
+    double? longitude;
 
-    return Column(
-      crossAxisAlignment:
-      CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment:
-          MainAxisAlignment
-              .spaceBetween,
-          children: [
-            Row(
+    if (gps is Map) {
+      final rawLatitude = gps['latitude'];
+      final rawLongitude = gps['longitude'];
+      if (rawLatitude is num) latitude = rawLatitude.toDouble();
+      if (rawLongitude is num) longitude = rawLongitude.toDouble();
+    }
+
+    final bool hasLocation = latitude != null &&
+        longitude != null &&
+        latitude >= -90 &&
+        latitude <= 90 &&
+        longitude >= -180 &&
+        longitude <= 180;
+
+    final bool isDeviceOnline = _deviceStatusText == 'Aktif';
+    final DateTime? lastSeen = _parseLastSeen(_latestTelemetry?['lastSeen']);
+    final LatLng? elderlyLocation =
+    hasLocation ? LatLng(latitude, longitude) : null;
+
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+            child: Row(
               children: [
-                const Icon(
-                  Icons.location_on_outlined,
-                  color:
-                  Color(0xFF0D9488),
-                  size: 20,
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE8F5E9),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(
+                    Icons.location_on,
+                    color: Colors.green,
+                    size: 20,
+                  ),
                 ),
-
-                const SizedBox(
-                    width: 8),
-
-                Text(
-                  'Lokasi Langsung',
-                  style:
-                  TextStyle(
-                    fontWeight:
-                    FontWeight.bold,
-                    fontSize: 16,
-                    color: Theme.of(
-                      context,
-                    )
-                        .colorScheme
-                        .onSurface,
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Text(
+                    'Lokasi Langsung',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: isDeviceOnline && hasLocation
+                        ? const Color(0xFFE8F5E9)
+                        : const Color(0xFFFFEBEE),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    isDeviceOnline && hasLocation ? 'GPS AKTIF' : 'GPS OFFLINE',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: isDeviceOnline && hasLocation
+                          ? Colors.green.shade700
+                          : Colors.red.shade700,
+                    ),
                   ),
                 ),
               ],
             ),
-
-            Text(
-              hasDevice
-                  ? 'Belum tersedia'
-                  : 'Belum terhubung',
-              style:
-              TextStyle(
-                color: Theme.of(
-                  context,
-                )
-                    .colorScheme
-                    .onSurfaceVariant,
-                fontSize: 12,
+          ),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: SizedBox(
+              height: 220,
+              width: double.infinity,
+              child: hasLocation
+                  ? FlutterMap(
+                options: MapOptions(
+                  initialCenter: elderlyLocation!,
+                  initialZoom: 16,
+                ),
+                children: [
+                  TileLayer(
+                    urlTemplate:
+                    'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                    userAgentPackageName: 'com.example.smart_sandal',
+                    tileProvider: NetworkTileProvider(
+                      cachingProvider: DisabledMapCachingProvider(),
+                    ),
+                  ),
+                  MarkerLayer(
+                    markers: [
+                      Marker(
+                        point: elderlyLocation,
+                        width: 50,
+                        height: 50,
+                        child: const Icon(
+                          Icons.location_pin,
+                          color: Colors.red,
+                          size: 48,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              )
+                  : Container(
+                color: const Color(0xFFF5F5F5),
+                child: const Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.location_off,
+                          size: 42, color: Colors.grey),
+                      SizedBox(height: 8),
+                      Text(
+                        'Lokasi belum tersedia',
+                        style:
+                        TextStyle(color: Colors.grey, fontSize: 13),
+                      ),
+                    ],
+                  ),
+                ),
               ),
-            ),
-          ],
-        ),
-
-        const SizedBox(
-            height: 12),
-
-        Container(
-          height: 180,
-          width: double.infinity,
-          decoration:
-          BoxDecoration(
-            color: Theme.of(
-              context,
-            ).cardColor,
-            borderRadius:
-            BorderRadius.circular(
-              20,
-            ),
-            border: Border.all(
-              color: Theme.of(
-                context,
-              ).dividerColor,
             ),
           ),
-          child: Stack(
-            children: [
-              Center(
-                child: Opacity(
-                  opacity: 0.1,
-                  child: CustomPaint(
-                    size:
-                    const Size(
-                      double.infinity,
-                      double.infinity,
-                    ),
-                    painter:
-                    GridPainter(),
-                  ),
-                ),
-              ),
-
-              Center(
-                child: Icon(
-                  hasDevice
-                      ? Icons.location_on
-                      : Icons.location_off_outlined,
-                  color: hasDevice
-                      ? const Color(
-                      0xFF0D9488)
-                      : Theme.of(
-                    context,
-                  )
-                      .colorScheme
-                      .onSurfaceVariant,
-                  size: 40,
-                ),
-              ),
-
-              Positioned(
-                top: 16,
-                right: 16,
-                child:
-                Container(
-                  padding:
-                  const EdgeInsets
-                      .symmetric(
-                    horizontal: 10,
-                    vertical: 4,
-                  ),
-                  decoration:
-                  BoxDecoration(
-                    color: Theme.of(
-                      context,
-                    ).cardColor,
-                    borderRadius:
-                    BorderRadius.circular(
-                      12,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors
-                            .black
-                            .withValues(
-                          alpha: 0.05,
-                        ),
-                        blurRadius: 10,
-                      ),
-                    ],
-                  ),
-                  child:
-                  Row(
-                    mainAxisSize:
-                    MainAxisSize.min,
-                    children: [
-                      Container(
-                        width: 6,
-                        height: 6,
-                        decoration:
-                        BoxDecoration(
-                          color: hasDevice
-                              ? Colors.green
-                              : Colors.grey,
-                          shape:
-                          BoxShape.circle,
-                        ),
-                      ),
-
-                      const SizedBox(
-                          width: 6),
-
-                      Text(
-                        hasDevice
-                            ? 'MENUNGGU DATA'
-                            : 'TIDAK TERSEDIA',
-                        style:
-                        TextStyle(
-                          fontSize: 10,
-                          fontWeight:
-                          FontWeight.bold,
-                          color: hasDevice
-                              ? Colors.green
-                              : Colors.grey,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-              Positioned(
-                bottom: 12,
-                left: 12,
-                right: 12,
-                child:
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
                 Row(
-                  mainAxisAlignment:
-                  MainAxisAlignment
-                      .spaceBetween,
                   children: [
-                    Column(
-                      crossAxisAlignment:
-                      CrossAxisAlignment
-                          .start,
-                      children: [
-                        Row(
-                          children: [
-                            const Icon(
-                              Icons.near_me,
-                              size: 12,
-                              color:
-                              Color(
-                                0xFF0D9488,
-                              ),
-                            ),
-
-                            const SizedBox(
-                                width: 4),
-
-                            Text(
-                              _elderlyName ??
-                                  'Lansia',
-                              style:
-                              TextStyle(
-                                fontSize: 12,
-                                fontWeight:
-                                FontWeight
-                                    .bold,
-                                color: Theme.of(
-                                  context,
-                                )
-                                    .colorScheme
-                                    .onSurface,
-                              ),
-                            ),
-                          ],
+                    const Icon(Icons.person_outline,
+                        size: 18, color: Colors.grey),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        _elderlyName ?? 'Lansia',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
                         ),
-
-                        Text(
-                          hasDevice
-                              ? 'Lokasi belum tersedia'
-                              : 'Sandal belum terhubung',
-                          style:
-                          TextStyle(
-                            fontSize: 10,
-                            color: Theme.of(
-                              context,
-                            )
-                                .colorScheme
-                                .onSurfaceVariant,
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    Text(
-                      'Belum tersedia',
-                      textAlign:
-                      TextAlign.right,
-                      style:
-                      TextStyle(
-                        fontSize: 10,
-                        color: Theme.of(
-                          context,
-                        )
-                            .colorScheme
-                            .onSurfaceVariant,
                       ),
                     ),
+                    if (hasLocation)
+                      Text(
+                        '${latitude.toStringAsFixed(6)}, ${longitude.toStringAsFixed(6)}',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey,
+                        ),
+                      ),
                   ],
                 ),
-              ),
-            ],
+                if (hasLocation && lastSeen != null) ...[
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      const Icon(Icons.access_time,
+                          size: 14, color: Colors.grey),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Lokasi terakhir diperbarui ${_formatTimeAgo(lastSeen)}',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -1649,36 +979,26 @@ class _HomePageState extends State<HomePage> {
   // METRICS
   // ============================================================
 
-  Widget _buildMetricsRow(
-      BuildContext context,
-      ) {
+  Widget _buildMetricsRow(BuildContext context) {
+    final battery = _latestTelemetry?['battery'];
+    final String batteryText = battery != null ? '$battery%' : 'Belum tersedia';
+
     return Row(
       children: [
         _buildMetricCard(
           context,
-          icon:
-          Icons.stacked_line_chart,
-          value:
-          'Belum tersedia',
-          label:
-          'Langkah Hari Ini',
-          color:
-          const Color(0xFF0D9488),
+          icon: Icons.stacked_line_chart,
+          value: 'Belum tersedia',
+          label: 'Langkah Hari Ini',
+          color: const Color(0xFF0D9488),
         ),
-
-        const SizedBox(
-            width: 12),
-
+        const SizedBox(width: 12),
         _buildMetricCard(
           context,
-          icon:
-          Icons.battery_charging_full,
-          value:
-          'Belum tersedia',
-          label:
-          'Baterai',
-          color:
-          const Color(0xFF0D9488),
+          icon: Icons.battery_charging_full,
+          value: batteryText,
+          label: 'Baterai Sandal',
+          color: const Color(0xFF0D9488),
         ),
       ],
     );
@@ -1693,77 +1013,39 @@ class _HomePageState extends State<HomePage> {
       }) {
     return Expanded(
       child: Container(
-        padding:
-        const EdgeInsets.symmetric(
-          vertical: 20,
-          horizontal: 8,
-        ),
-        decoration:
-        BoxDecoration(
-          color: Theme.of(context)
-              .cardColor,
-          borderRadius:
-          BorderRadius.circular(
-            20,
-          ),
-          border: Border.all(
-            color: Theme.of(
-              context,
-            ).dividerColor,
-          ),
+        padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 8),
+        decoration: BoxDecoration(
+          color: Theme.of(context).cardColor,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Theme.of(context).dividerColor),
           boxShadow: [
             BoxShadow(
-              color: Colors.black
-                  .withValues(
-                alpha: 0.03,
-              ),
+              color: Colors.black.withValues(alpha: 0.03),
               blurRadius: 10,
-              offset:
-              const Offset(0, 4),
+              offset: const Offset(0, 4),
             ),
           ],
         ),
         child: Column(
           children: [
-            Icon(
-              icon,
-              color: color,
-              size: 28,
-            ),
-
-            const SizedBox(
-                height: 12),
-
+            Icon(icon, color: color, size: 28),
+            const SizedBox(height: 12),
             Text(
               value,
-              textAlign:
-              TextAlign.center,
+              textAlign: TextAlign.center,
               style: TextStyle(
-                color: Theme.of(
-                  context,
-                )
-                    .colorScheme
-                    .onSurface,
+                color: Theme.of(context).colorScheme.onSurface,
                 fontSize: 15,
-                fontWeight:
-                FontWeight.bold,
+                fontWeight: FontWeight.bold,
               ),
             ),
-
-            const SizedBox(
-                height: 4),
-
+            const SizedBox(height: 4),
             Text(
               label,
-              textAlign:
-              TextAlign.center,
+              textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 11,
-                color: Theme.of(
-                  context,
-                )
-                    .colorScheme
-                    .onSurfaceVariant,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
           ],
@@ -1776,71 +1058,39 @@ class _HomePageState extends State<HomePage> {
   // ACTIVITY TIMELINE
   // ============================================================
 
-  Widget _buildActivityTimeline(
-      BuildContext context,
-      ) {
+  Widget _buildActivityTimeline(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding:
-      const EdgeInsets.all(20),
-      decoration:
-      BoxDecoration(
-        color: Theme.of(context)
-            .cardColor,
-        borderRadius:
-        BorderRadius.circular(
-          20,
-        ),
-        border: Border.all(
-          color: Theme.of(context)
-              .dividerColor,
-        ),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Theme.of(context).dividerColor),
       ),
       child: Column(
         children: [
           Icon(
             Icons.timeline_outlined,
             size: 42,
-            color: Theme.of(context)
-                .colorScheme
-                .onSurfaceVariant,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
           ),
-
-          const SizedBox(
-              height: 12),
-
+          const SizedBox(height: 12),
           Text(
-            'Belum tersedia',
-            style:
-            TextStyle(
+            'Belum Tersedia',
+            style: TextStyle(
               fontSize: 14,
-              fontWeight:
-              FontWeight.bold,
-              color: Theme.of(
-                context,
-              )
-                  .colorScheme
-                  .onSurface,
+              fontWeight: FontWeight.bold,
+              color: Theme.of(context).colorScheme.onSurface,
             ),
           ),
-
-          const SizedBox(
-              height: 6),
-
+          const SizedBox(height: 6),
           Text(
-            'Aktivitas akan tampil setelah '
-                'sandal mengirimkan data monitoring.',
-            textAlign:
-            TextAlign.center,
-            style:
-            TextStyle(
+            'Aktivitas harian akan tampil secara otomatis setelah sandal EMERYS mengirimkan data monitoring.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
               fontSize: 12,
               height: 1.4,
-              color: Theme.of(
-                context,
-              )
-                  .colorScheme
-                  .onSurfaceVariant,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
           ),
         ],
@@ -1855,21 +1105,12 @@ class _HomePageState extends State<HomePage> {
 
 class GridPainter extends CustomPainter {
   @override
-  void paint(
-      Canvas canvas,
-      Size size,
-      ) {
+  void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = Colors.teal.withValues(
-        alpha: 0.1,
-      )
+      ..color = Colors.teal.withValues(alpha: 0.1)
       ..strokeWidth = 1;
 
-    for (
-    double i = 0;
-    i <= size.width;
-    i += 40
-    ) {
+    for (double i = 0; i <= size.width; i += 40) {
       canvas.drawLine(
         Offset(i, 0),
         Offset(i, size.height),
@@ -1877,11 +1118,7 @@ class GridPainter extends CustomPainter {
       );
     }
 
-    for (
-    double i = 0;
-    i <= size.height;
-    i += 40
-    ) {
+    for (double i = 0; i <= size.height; i += 40) {
       canvas.drawLine(
         Offset(0, i),
         Offset(size.width, i),
@@ -1891,9 +1128,7 @@ class GridPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(
-      covariant CustomPainter oldDelegate,
-      ) {
+  bool shouldRepaint(covariant CustomPainter oldDelegate) {
     return false;
   }
 }
