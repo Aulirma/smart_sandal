@@ -278,7 +278,7 @@ class _ElderlyHomePageState
 
               itemCount: devices.length,
 
-              separatorBuilder: (_, __) =>
+              separatorBuilder: (_, _) =>
               const Divider(),
 
               itemBuilder: (context, index) {

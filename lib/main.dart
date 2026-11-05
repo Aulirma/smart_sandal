@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'firebase_options.dart'; // auto-generated dari `flutterfire configure`
 
@@ -10,11 +11,18 @@ import 'services/fcm_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+
+  // WAJIB: daftarkan sebelum runApp agar pesan saat app
+  // di background / tertutup tetap diproses.
+  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+
   await initializeDateFormatting('id');
   await FcmService.instance.initialize();
+
   runApp(const MyApp());
 }
 

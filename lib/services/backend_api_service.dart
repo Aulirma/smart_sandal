@@ -178,10 +178,8 @@ class BackendApiService {
       },
       body: jsonEncode({
         'severity': severity,
-        if (latitude != null)
-          'latitude': latitude,
-        if (longitude != null)
-          'longitude': longitude,
+        'latitude': ?latitude,
+        'longitude': ?longitude,
       }),
     );
 
@@ -223,8 +221,7 @@ class BackendApiService {
       body: jsonEncode({
         'deviceId': deviceId,
         'window': window,
-        if (tinyml != null)
-          'tinyml': tinyml,
+        'tinyml': ?tinyml,
       }),
     );
 

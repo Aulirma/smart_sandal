@@ -22,7 +22,7 @@ class AppTheme {
       thumbColor: WidgetStateProperty.all(primaryColor),
       trackColor: WidgetStateProperty.resolveWith((states) {
         if (states.contains(WidgetState.selected)) {
-          return primaryColor.withOpacity(0.4);
+          return primaryColor.withValues(alpha: 0.4);
         }
         return Colors.grey.shade300;
       }),
@@ -49,7 +49,7 @@ class AppTheme {
       thumbColor: WidgetStateProperty.all(primaryColor),
       trackColor: WidgetStateProperty.resolveWith((states) {
         if (states.contains(WidgetState.selected)) {
-          return primaryColor.withOpacity(0.5);
+          return primaryColor.withValues(alpha: 0.5);
         }
         return Colors.grey;
       }),

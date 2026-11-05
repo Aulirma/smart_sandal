@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import '../services/backend_api_service.dart';
+import '../services/fcm_service.dart';
 import '../services/firestore_monitoring_service.dart';
 import '../theme/app_theme.dart';
 
@@ -90,6 +91,8 @@ class _HomePageState extends State<HomePage> {
     _fallEventProcessing = true;
 
     try {
+      await FcmService.instance.triggerEmergencyFallAlarm();
+
       final gps = telemetry['gps'];
       double? latitude;
       double? longitude;
@@ -182,7 +185,7 @@ class _HomePageState extends State<HomePage> {
 
       if (!mounted) return;
 
-      if (data != null && data is Map && data['exists'] == true) {
+      if (data['exists'] == true) {
         final elderlyId = data['elderlyId']?.toString();
 
         setState(() {
@@ -805,7 +808,7 @@ class _HomePageState extends State<HomePage> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),

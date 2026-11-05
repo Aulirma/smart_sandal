@@ -19,6 +19,9 @@ class _ProfilPageState extends State<ProfilPage> {
   final BackendApiService _api = BackendApiService();
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
+  // Perangkat dianggap terhubung kalau ada data masuk dalam rentang ini.
+  static const Duration _onlineThreshold = Duration(minutes: 5);
+
   bool _isLoading = true;
   bool _isSaving = false;
   bool _hasData = false;
@@ -26,32 +29,50 @@ class _ProfilPageState extends State<ProfilPage> {
 
   String? _elderlyId;
   String? _deviceId;
+  String? _listenedDeviceId;
+  DateTime? _lastReadingAt;
 
   Map<String, dynamic>? _waliData;
 
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>?
   _profileSubscription;
 
-  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>?
-  _waliSubscription;
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _waliSubscription;
+
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _readingSubscription;
+
+  // Menghitung ulang status online secara berkala.
+  Timer? _statusTimer;
 
   final _namaController = TextEditingController();
   final _usiaController = TextEditingController();
   final _catatanController = TextEditingController();
 
-  bool get _isDeviceConnected =>
-      _deviceId != null && _deviceId!.isNotEmpty;
+  // Device ID sudah terdaftar di profil (belum tentu sedang online).
+  bool get _hasDeviceId => _deviceId != null && _deviceId!.isNotEmpty;
+
+  // Terhubung = Device ID terdaftar DAN ada data terbaru dari sandal.
+  bool get _isDeviceConnected {
+    if (!_hasDeviceId || _lastReadingAt == null) return false;
+    return DateTime.now().difference(_lastReadingAt!) <= _onlineThreshold;
+  }
 
   @override
   void initState() {
     super.initState();
     _loadProfile();
+
+    _statusTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted) setState(() {});
+    });
   }
 
   @override
   void dispose() {
+    _statusTimer?.cancel();
     _profileSubscription?.cancel();
     _waliSubscription?.cancel();
+    _readingSubscription?.cancel();
 
     _namaController.dispose();
     _usiaController.dispose();
@@ -95,6 +116,7 @@ class _ProfilPageState extends State<ProfilPage> {
           _hasData = false;
           _elderlyId = null;
           _deviceId = null;
+          _lastReadingAt = null;
           _waliData = null;
           _isLoadingWali = false;
         });
@@ -129,44 +151,108 @@ class _ProfilPageState extends State<ProfilPage> {
         .snapshots()
         .listen(
           (snapshot) {
-        if (!snapshot.exists) {
-          if (!mounted) return;
+            if (!snapshot.exists) {
+              if (!mounted) return;
 
-          setState(() {
-            _hasData = false;
-            _elderlyId = null;
-            _deviceId = null;
-            _waliData = null;
-            _isLoadingWali = false;
-          });
+              _readingSubscription?.cancel();
+              _listenedDeviceId = null;
 
-          return;
-        }
+              setState(() {
+                _hasData = false;
+                _elderlyId = null;
+                _deviceId = null;
+                _lastReadingAt = null;
+                _waliData = null;
+                _isLoadingWali = false;
+              });
 
-        final data = snapshot.data();
+              return;
+            }
 
-        if (data == null || !mounted) return;
+            final data = snapshot.data();
 
-        final deviceId = data['deviceId']?.toString();
-        final waliIds = List<dynamic>.from(data['waliIds'] ?? []);
+            if (data == null || !mounted) return;
 
+            final deviceId = data['deviceId']?.toString();
+            final waliIds = List<dynamic>.from(data['waliIds'] ?? []);
+
+            setState(() {
+              _hasData = true;
+              _elderlyId = snapshot.id;
+              _deviceId = deviceId;
+
+              _namaController.text = data['name']?.toString() ?? '';
+              _usiaController.text = data['age']?.toString() ?? '';
+              _catatanController.text = data['healthNote']?.toString() ?? '';
+            });
+
+            _listenToDeviceReadings(deviceId);
+            _listenToWali(waliIds);
+          },
+          onError: (error) {
+            debugPrint('[Firestore] Error listener profil: $error');
+          },
+        );
+  }
+
+  // ============================================================
+  // LISTENER DATA TERBARU DARI SANDAL
+  // Dipakai untuk menentukan perangkat benar-benar online atau tidak.
+  // ============================================================
+
+  void _listenToDeviceReadings(String? deviceId) {
+    // Sudah mendengarkan device yang sama, tidak perlu listen ulang.
+    if (deviceId == _listenedDeviceId) return;
+
+    _readingSubscription?.cancel();
+    _listenedDeviceId = deviceId;
+
+    if (deviceId == null || deviceId.isEmpty) {
+      if (mounted) {
         setState(() {
-          _hasData = true;
-          _elderlyId = snapshot.id;
-          _deviceId = deviceId;
-
-          _namaController.text = data['name']?.toString() ?? '';
-          _usiaController.text = data['age']?.toString() ?? '';
-          _catatanController.text =
-              data['healthNote']?.toString() ?? '';
+          _lastReadingAt = null;
         });
+      }
+      return;
+    }
 
-        _listenToWali(waliIds);
-      },
-      onError: (error) {
-        debugPrint('[Firestore] Error listener profil: $error');
-      },
-    );
+    debugPrint('[Firestore] Listen device_telemetry/$deviceId/readings');
+
+    _readingSubscription = _firestore
+        .collection('device_telemetry')
+        .doc(deviceId)
+        .collection('readings')
+        .orderBy('receivedAt', descending: true)
+        .limit(1)
+        .snapshots()
+        .listen(
+          (snapshot) {
+            if (!mounted) return;
+
+            DateTime? lastReading;
+
+            if (snapshot.docs.isNotEmpty) {
+              final receivedAt = snapshot.docs.first.data()['receivedAt'];
+
+              if (receivedAt is Timestamp) {
+                lastReading = receivedAt.toDate();
+              }
+            }
+
+            setState(() {
+              _lastReadingAt = lastReading;
+            });
+          },
+          onError: (error) {
+            debugPrint('[Firestore] Error listener readings: $error');
+
+            if (!mounted) return;
+
+            setState(() {
+              _lastReadingAt = null;
+            });
+          },
+        );
   }
 
   // ============================================================
@@ -210,24 +296,24 @@ class _ProfilPageState extends State<ProfilPage> {
         .snapshots()
         .listen(
           (snapshot) {
-        if (!mounted) return;
+            if (!mounted) return;
 
-        setState(() {
-          _waliData = snapshot.exists ? snapshot.data() : null;
-          _isLoadingWali = false;
-        });
-      },
-      onError: (error) {
-        debugPrint('[Firestore] Error listener wali: $error');
+            setState(() {
+              _waliData = snapshot.exists ? snapshot.data() : null;
+              _isLoadingWali = false;
+            });
+          },
+          onError: (error) {
+            debugPrint('[Firestore] Error listener wali: $error');
 
-        if (!mounted) return;
+            if (!mounted) return;
 
-        setState(() {
-          _waliData = null;
-          _isLoadingWali = false;
-        });
-      },
-    );
+            setState(() {
+              _waliData = null;
+              _isLoadingWali = false;
+            });
+          },
+        );
   }
 
   // ============================================================
@@ -310,12 +396,9 @@ class _ProfilPageState extends State<ProfilPage> {
                         onPressed: _isSaving
                             ? null
                             : () async {
-                          setSheetState(() {});
-                          await _saveProfile(
-                            sheetContext,
-                            setSheetState,
-                          );
-                        },
+                                setSheetState(() {});
+                                await _saveProfile(sheetContext, setSheetState);
+                              },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF0D8B94),
                           foregroundColor: Colors.white,
@@ -325,22 +408,20 @@ class _ProfilPageState extends State<ProfilPage> {
                         ),
                         child: _isSaving
                             ? const SizedBox(
-                          width: 22,
-                          height: 22,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
+                                width: 22,
+                                height: 22,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
                             : Text(
-                          isEdit
-                              ? 'Simpan Perubahan'
-                              : 'Simpan Profil',
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
+                                isEdit ? 'Simpan Perubahan' : 'Simpan Profil',
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
                       ),
                     ),
 
@@ -360,9 +441,9 @@ class _ProfilPageState extends State<ProfilPage> {
   // ============================================================
 
   Future<void> _saveProfile(
-      BuildContext sheetContext,
-      StateSetter setSheetState,
-      ) async {
+    BuildContext sheetContext,
+    StateSetter setSheetState,
+  ) async {
     if (_isSaving) return;
 
     final name = _namaController.text.trim();
@@ -405,14 +486,11 @@ class _ProfilPageState extends State<ProfilPage> {
         final userSnapshot = await userRef.get();
 
         if (!userSnapshot.exists) {
-          throw Exception(
-            'Data akun wali tidak ditemukan di koleksi users.',
-          );
+          throw Exception('Data akun wali tidak ditemukan di koleksi users.');
         }
 
         // BUAT DOKUMEN PROFIL LANSIA
-        final elderlyRef =
-        _firestore.collection('elderly_profiles').doc();
+        final elderlyRef = _firestore.collection('elderly_profiles').doc();
 
         final batch = _firestore.batch();
 
@@ -438,6 +516,7 @@ class _ProfilPageState extends State<ProfilPage> {
           _hasData = true;
           _elderlyId = elderlyRef.id;
           _deviceId = '';
+          _lastReadingAt = null;
         });
 
         _listenToElderlyProfile(elderlyRef.id);
@@ -447,10 +526,7 @@ class _ProfilPageState extends State<ProfilPage> {
         _showMessage('Profil lansia berhasil ditambahkan ke database.');
       } else {
         // UPDATE PROFIL YANG SUDAH ADA
-        await _firestore
-            .collection('elderly_profiles')
-            .doc(_elderlyId)
-            .update({
+        await _firestore.collection('elderly_profiles').doc(_elderlyId).update({
           'name': name,
           'age': age,
           'healthNote': healthNote,
@@ -512,10 +588,7 @@ class _ProfilPageState extends State<ProfilPage> {
 
               const Text(
                 'Device ID',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
               ),
 
               const SizedBox(height: 8),
@@ -530,9 +603,7 @@ class _ProfilPageState extends State<ProfilPage> {
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(
-                      color: Color(0xFF0D8B94),
-                    ),
+                    borderSide: const BorderSide(color: Color(0xFF0D8B94)),
                   ),
                 ),
               ),
@@ -541,10 +612,7 @@ class _ProfilPageState extends State<ProfilPage> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dialogContext),
-              child: const Text(
-                'Batal',
-                style: TextStyle(color: Colors.grey),
-              ),
+              child: const Text('Batal', style: TextStyle(color: Colors.grey)),
             ),
             ElevatedButton(
               onPressed: () {
@@ -589,15 +657,11 @@ class _ProfilPageState extends State<ProfilPage> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (_) => const Center(
-        child: CircularProgressIndicator(),
-      ),
+      builder: (_) => const Center(child: CircularProgressIndicator()),
     );
 
     try {
-      final result = await _api.generateDevicePairing(
-        deviceId: deviceId,
-      );
+      final result = await _api.generateDevicePairing(deviceId: deviceId);
 
       if (!mounted) return;
 
@@ -611,10 +675,7 @@ class _ProfilPageState extends State<ProfilPage> {
         return;
       }
 
-      _showPairingCodeDialog(
-        code: code,
-        expiresInMinutes: expires,
-      );
+      _showPairingCodeDialog(code: code, expiresInMinutes: expires);
     } catch (e) {
       if (!mounted) return;
 
@@ -655,8 +716,7 @@ class _ProfilPageState extends State<ProfilPage> {
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(vertical: 20),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF0D8B94)
-                      .withValues(alpha: 0.08),
+                  color: const Color(0xFF0D8B94).withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: Text(
@@ -675,13 +735,11 @@ class _ProfilPageState extends State<ProfilPage> {
 
               Text(
                 'Kode berlaku selama $expiresInMinutes menit '
-                    'dan hanya dapat digunakan satu kali.',
+                'dan hanya dapat digunakan satu kali.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 13,
-                  color: Theme.of(context)
-                      .colorScheme
-                      .onSurfaceVariant,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
               ),
             ],
@@ -715,7 +773,7 @@ class _ProfilPageState extends State<ProfilPage> {
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         backgroundColor:
-        Theme.of(context).appBarTheme.backgroundColor ??
+            Theme.of(context).appBarTheme.backgroundColor ??
             Theme.of(context).colorScheme.surface,
         elevation: 0,
         scrolledUnderElevation: 0,
@@ -737,15 +795,15 @@ class _ProfilPageState extends State<ProfilPage> {
         ),
         actions: _hasData
             ? [
-          IconButton(
-            tooltip: 'Edit profil',
-            onPressed: () => _showFormInput(isEdit: true),
-            icon: const Icon(
-              Icons.edit_outlined,
-              color: Color(0xFF0D8B94),
-            ),
-          ),
-        ]
+                IconButton(
+                  tooltip: 'Edit profil',
+                  onPressed: () => _showFormInput(isEdit: true),
+                  icon: const Icon(
+                    Icons.edit_outlined,
+                    color: Color(0xFF0D8B94),
+                  ),
+                ),
+              ]
             : null,
       ),
       body: _isLoading
@@ -837,9 +895,7 @@ class _ProfilPageState extends State<ProfilPage> {
                 decoration: BoxDecoration(
                   color: Theme.of(context).cardColor,
                   borderRadius: BorderRadius.circular(24),
-                  border: Border.all(
-                    color: Theme.of(context).dividerColor,
-                  ),
+                  border: Border.all(color: Theme.of(context).dividerColor),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withValues(alpha: 0.04),
@@ -860,8 +916,9 @@ class _ProfilPageState extends State<ProfilPage> {
                             width: 60,
                             height: 60,
                             decoration: BoxDecoration(
-                              color: const Color(0xFF0D8B94)
-                                  .withValues(alpha: 0.1),
+                              color: const Color(
+                                0xFF0D8B94,
+                              ).withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(16),
                             ),
                             child: const Icon(
@@ -882,18 +939,18 @@ class _ProfilPageState extends State<ProfilPage> {
                                   style: TextStyle(
                                     fontSize: 17,
                                     fontWeight: FontWeight.bold,
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .onSurface,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onSurface,
                                   ),
                                 ),
                                 const SizedBox(height: 2),
                                 Text(
                                   'Usia: ${_usiaController.text} tahun',
                                   style: TextStyle(
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .onSurfaceVariant,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onSurfaceVariant,
                                     fontSize: 13,
                                   ),
                                 ),
@@ -914,9 +971,9 @@ class _ProfilPageState extends State<ProfilPage> {
                               ),
                               child: Icon(
                                 Icons.edit_outlined,
-                                color: Theme.of(context)
-                                    .colorScheme
-                                    .onSurfaceVariant,
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
                                 size: 18,
                               ),
                             ),
@@ -944,8 +1001,7 @@ class _ProfilPageState extends State<ProfilPage> {
                         width: double.infinity,
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: Theme.of(context).brightness ==
-                              Brightness.dark
+                          color: Theme.of(context).brightness == Brightness.dark
                               ? Colors.black12
                               : Colors.grey[50],
                           borderRadius: BorderRadius.circular(12),
@@ -988,8 +1044,7 @@ class _ProfilPageState extends State<ProfilPage> {
                 width: double.infinity,
                 height: 52,
                 child: ElevatedButton(
-                  onPressed:
-                  _isDeviceConnected ? null : _generatePairingCode,
+                  onPressed: _isDeviceConnected ? null : _generatePairingCode,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF0D8B94),
                     disabledBackgroundColor: Colors.grey,
@@ -1021,6 +1076,11 @@ class _ProfilPageState extends State<ProfilPage> {
 
   Widget _buildDeviceSection() {
     if (!_isDeviceConnected) {
+      // Dua kemungkinan:
+      // - Device ID kosong: belum pernah dipasangkan.
+      // - Device ID ada: sudah terdaftar tapi belum ada data masuk.
+      final waitingForData = _hasDeviceId;
+
       return Padding(
         padding: const EdgeInsets.symmetric(horizontal: 20),
         child: Column(
@@ -1029,10 +1089,7 @@ class _ProfilPageState extends State<ProfilPage> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                _buildSectionHeader(
-                  Icons.bluetooth_disabled,
-                  'Perangkat',
-                ),
+                _buildSectionHeader(Icons.bluetooth_disabled, 'Perangkat'),
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 12,
@@ -1042,9 +1099,9 @@ class _ProfilPageState extends State<ProfilPage> {
                     color: Colors.orange.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Text(
-                    'BELUM TERHUBUNG',
-                    style: TextStyle(
+                  child: Text(
+                    waitingForData ? 'MENUNGGU DATA' : 'BELUM TERHUBUNG',
+                    style: const TextStyle(
                       color: Colors.orange,
                       fontSize: 11,
                       fontWeight: FontWeight.bold,
@@ -1060,9 +1117,7 @@ class _ProfilPageState extends State<ProfilPage> {
               width: double.infinity,
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                border: Border.all(
-                  color: Theme.of(context).dividerColor,
-                ),
+                border: Border.all(color: Theme.of(context).dividerColor),
                 borderRadius: BorderRadius.circular(16),
               ),
               child: Column(
@@ -1076,7 +1131,9 @@ class _ProfilPageState extends State<ProfilPage> {
                   const SizedBox(height: 12),
 
                   Text(
-                    'Sandal pintar belum terhubung.',
+                    waitingForData
+                        ? 'Belum ada data dari sandal pintar.'
+                        : 'Sandal pintar belum terhubung.',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 14,
@@ -1088,15 +1145,18 @@ class _ProfilPageState extends State<ProfilPage> {
                   const SizedBox(height: 6),
 
                   Text(
-                    'Hubungkan perangkat dengan menggunakan '
-                        'kode setup pada HP lansia.',
+                    waitingForData
+                        ? 'Perangkat $_deviceId sudah terdaftar, tetapi belum '
+                              'mengirim data dalam ${_onlineThreshold.inMinutes} '
+                              'menit terakhir. Pastikan sandal menyala dan '
+                              'HP lansia terhubung ke internet.'
+                        : 'Hubungkan perangkat dengan menggunakan '
+                              'kode setup pada HP lansia.',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 13,
                       height: 1.4,
-                      color: Theme.of(context)
-                          .colorScheme
-                          .onSurfaceVariant,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                   ),
 
@@ -1109,9 +1169,7 @@ class _ProfilPageState extends State<ProfilPage> {
                       onPressed: _generatePairingCode,
                       style: OutlinedButton.styleFrom(
                         foregroundColor: const Color(0xFF0D8B94),
-                        side: const BorderSide(
-                          color: Color(0xFF0D8B94),
-                        ),
+                        side: const BorderSide(color: Color(0xFF0D8B94)),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
@@ -1135,10 +1193,7 @@ class _ProfilPageState extends State<ProfilPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildSectionHeader(
-            Icons.bluetooth_connected,
-            'Perangkat Terhubung',
-          ),
+          _buildSectionHeader(Icons.bluetooth_connected, 'Perangkat Terhubung'),
 
           const SizedBox(height: 14),
 
@@ -1194,10 +1249,7 @@ class _ProfilPageState extends State<ProfilPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildSectionHeader(
-            Icons.phone_android_outlined,
-            'Kontak Darurat',
-          ),
+          _buildSectionHeader(Icons.phone_android_outlined, 'Kontak Darurat'),
 
           const SizedBox(height: 16),
 
@@ -1213,9 +1265,7 @@ class _ProfilPageState extends State<ProfilPage> {
               width: double.infinity,
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                border: Border.all(
-                  color: Theme.of(context).dividerColor,
-                ),
+                border: Border.all(color: Theme.of(context).dividerColor),
                 borderRadius: BorderRadius.circular(16),
               ),
               child: Column(
@@ -1237,13 +1287,11 @@ class _ProfilPageState extends State<ProfilPage> {
 
                   Text(
                     'Pastikan profil lansia sudah terhubung '
-                        'dengan akun wali.',
+                    'dengan akun wali.',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 13,
-                      color: Theme.of(context)
-                          .colorScheme
-                          .onSurfaceVariant,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                   ),
                 ],
@@ -1252,16 +1300,11 @@ class _ProfilPageState extends State<ProfilPage> {
           else
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 20,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
               decoration: BoxDecoration(
                 color: Theme.of(context).cardColor,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: Theme.of(context).dividerColor,
-                ),
+                border: Border.all(color: Theme.of(context).dividerColor),
               ),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
@@ -1270,8 +1313,7 @@ class _ProfilPageState extends State<ProfilPage> {
                     width: 48,
                     height: 48,
                     decoration: BoxDecoration(
-                      color: const Color(0xFF0D8B94)
-                          .withValues(alpha: 0.1),
+                      color: const Color(0xFF0D8B94).withValues(alpha: 0.1),
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(
@@ -1307,9 +1349,9 @@ class _ProfilPageState extends State<ProfilPage> {
                               : 'Nomor telepon belum tersedia',
                           style: TextStyle(
                             fontSize: 13,
-                            color: Theme.of(context)
-                                .colorScheme
-                                .onSurfaceVariant,
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurfaceVariant,
                           ),
                         ),
 
@@ -1352,11 +1394,7 @@ class _ProfilPageState extends State<ProfilPage> {
   Widget _buildSectionHeader(IconData icon, String title) {
     return Row(
       children: [
-        Icon(
-          icon,
-          color: const Color(0xFF0D8B94),
-          size: 18,
-        ),
+        Icon(icon, color: const Color(0xFF0D8B94), size: 18),
 
         const SizedBox(width: 8),
 
@@ -1373,21 +1411,18 @@ class _ProfilPageState extends State<ProfilPage> {
   }
 
   Widget _buildFormTextField(
-      String label,
-      TextEditingController controller,
-      String hint, {
-        TextInputType keyboardType = TextInputType.text,
-        int maxLines = 1,
-      }) {
+    String label,
+    TextEditingController controller,
+    String hint, {
+    TextInputType keyboardType = TextInputType.text,
+    int maxLines = 1,
+  }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           label,
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 14,
-          ),
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
         ),
 
         const SizedBox(height: 8),
@@ -1398,10 +1433,7 @@ class _ProfilPageState extends State<ProfilPage> {
           maxLines: maxLines,
           decoration: InputDecoration(
             hintText: hint,
-            hintStyle: TextStyle(
-              color: Colors.grey[400],
-              fontSize: 14,
-            ),
+            hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
             filled: true,
             fillColor: Colors.grey[50],
             border: OutlineInputBorder(
@@ -1414,9 +1446,7 @@ class _ProfilPageState extends State<ProfilPage> {
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(
-                color: Color(0xFF0D8B94),
-              ),
+              borderSide: const BorderSide(color: Color(0xFF0D8B94)),
             ),
             contentPadding: const EdgeInsets.symmetric(
               horizontal: 16,
@@ -1431,8 +1461,8 @@ class _ProfilPageState extends State<ProfilPage> {
   void _showMessage(String message) {
     if (!mounted) return;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 }

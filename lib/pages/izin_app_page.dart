@@ -133,7 +133,7 @@ class _IzinAppPageState extends State<IzinAppPage> {
         trailing: Switch(
           value: value,
           onChanged: onChanged,
-          activeColor: Colors.white,
+          activeThumbColor: Colors.white,
           activeTrackColor: teal,
           inactiveThumbColor: Colors.white,
           inactiveTrackColor: const Color(0xFFD4DDE0),
