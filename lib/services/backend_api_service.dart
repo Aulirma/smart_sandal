@@ -3,8 +3,24 @@ import 'package:http/http.dart' as http;
 import 'package:firebase_auth/firebase_auth.dart';
 
 class BackendApiService {
-  static const String baseUrl =
-      'https://irmaaulia.pythonanywhere.com';
+  // ============================================================
+  // SERVER URL CONFIGURATION
+  // Pilih salah satu target server dengan comment/uncomment baris di bawah:
+  // ============================================================
+
+  // [1] PythonAnywhere (Cloud Default)
+  static const String baseUrl = 'https://irmaaulia.pythonanywhere.com';
+
+  // [2] Localhost via NGROK (Ganti URL dengan yang muncul di terminal ngrok)
+  // static const String baseUrl = 'https://ganti-dengan-subdomain-kamu.ngrok-free.app';
+
+  // [3] Local Wi-Fi (Ganti dengan IP laptop Anda, misal: 192.168.1.25)
+  // static const String baseUrl = 'http://192.168.1.25:5000';
+
+  // [4] Android Emulator (Khusus jika run di emulator Android Studio)
+  // static const String baseUrl = 'http://10.0.2.2:5000';
+
+  // ============================================================
 
   Future<String?> _getIdToken() async {
     final user = FirebaseAuth.instance.currentUser;
