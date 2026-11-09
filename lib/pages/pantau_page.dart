@@ -8,7 +8,8 @@ import 'package:intl/intl.dart';
 import '../services/backend_api_service.dart';
 import '../services/firestore_monitoring_service.dart';
 import '../theme/app_theme.dart';
-import 'home_page.dart' show GridPainter;
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 
 class PantauPage extends StatefulWidget {
   final VoidCallback? onBackPressed;
@@ -150,6 +151,16 @@ class _PantauPageState extends State<PantauPage> {
     return null;
   }
 
+  String _formatTimeAgo(DateTime? time) {
+    if (time == null) return 'Belum tersedia';
+    final difference = DateTime.now().difference(time);
+    if (difference.inSeconds < 60) return 'beberapa detik lalu';
+    if (difference.inMinutes < 60) return '${difference.inMinutes} menit lalu';
+    if (difference.inHours < 24) return '${difference.inHours} jam lalu';
+    if (difference.inDays < 30) return '${difference.inDays} hari lalu';
+    return 'lebih dari 30 hari lalu';
+  }
+
   bool get _isConnected {
     if (_deviceId == null) return false;
     final lastSeen = _lastSeen();
@@ -222,12 +233,6 @@ class _PantauPageState extends State<PantauPage> {
     }
   }
 
-  double? _gpsValue(String key) {
-    final gps = _telemetry?['gps'];
-    if (gps is! Map) return null;
-    final v = gps[key];
-    return v is num ? v.toDouble() : null;
-  }
 
   // ============================================================
   // BUILD
@@ -444,171 +449,205 @@ class _PantauPageState extends State<PantauPage> {
   // ------------------------------------------------------------
 
   Widget _buildLocationCard(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final hasDevice = _isConnected;
-    final lat = _gpsValue('latitude');
-    final lng = _gpsValue('longitude');
-    final hasLocation = hasDevice && lat != null && lng != null;
+    final gps = _telemetry?['gps'];
+    double? latitude;
+    double? longitude;
 
-    final badgeColor = hasDevice ? Colors.green : Colors.grey;
-    final badgeText = !hasDevice
-        ? 'TIDAK TERSEDIA'
-        : (hasLocation ? 'LANGSUNG' : 'MENUNGGU DATA');
+    if (gps is Map) {
+      final rawLatitude = gps['latitude'];
+      final rawLongitude = gps['longitude'];
+      if (rawLatitude is num) latitude = rawLatitude.toDouble();
+      if (rawLongitude is num) longitude = rawLongitude.toDouble();
+    }
 
-    String coord(double v, String pos, String neg) =>
-        '${v.abs().toStringAsFixed(4)}°${v >= 0 ? pos : neg}';
+    final bool hasLocation = latitude != null &&
+        longitude != null &&
+        latitude >= -90 &&
+        latitude <= 90 &&
+        longitude >= -180 &&
+        longitude <= 180;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Row(
+    final bool isDeviceOnline = _isConnected;
+    final DateTime? lastSeen = _lastSeen();
+    final LatLng? elderlyLocation =
+        hasLocation ? LatLng(latitude, longitude) : null;
+
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+            child: Row(
               children: [
-                const Icon(Icons.location_on_outlined,
-                    color: Color(0xFF0D9488), size: 20),
-                const SizedBox(width: 8),
-                Text(
-                  'Lokasi Langsung',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                    color: scheme.onSurface,
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE8F5E9),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(
+                    Icons.location_on,
+                    color: Colors.green,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Lokasi Langsung',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: isDeviceOnline && hasLocation
+                        ? const Color(0xFFE8F5E9)
+                        : const Color(0xFFFFEBEE),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    isDeviceOnline && hasLocation ? 'GPS AKTIF' : 'GPS OFFLINE',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: isDeviceOnline && hasLocation
+                          ? Colors.green.shade700
+                          : Colors.red.shade700,
+                    ),
                   ),
                 ),
               ],
             ),
-            Text(
-              hasDevice
-                  ? (hasLocation ? 'Aktif' : 'Belum tersedia')
-                  : 'Belum terhubung',
-              style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        Container(
-          height: 180,
-          width: double.infinity,
-          decoration: BoxDecoration(
-            color: Theme.of(context).cardColor,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Theme.of(context).dividerColor),
           ),
-          child: Stack(
-            children: [
-              Center(
-                child: Opacity(
-                  opacity: 0.1,
-                  child: CustomPaint(
-                    size: const Size(double.infinity, double.infinity),
-                    painter: GridPainter(),
-                  ),
-                ),
-              ),
-              Center(
-                child: Icon(
-                  hasLocation
-                      ? Icons.location_on
-                      : Icons.location_off_outlined,
-                  color: hasLocation
-                      ? const Color(0xFF0D9488)
-                      : scheme.onSurfaceVariant,
-                  size: 40,
-                ),
-              ),
-              Positioned(
-                top: 16,
-                right: 16,
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).cardColor,
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.05),
-                        blurRadius: 10,
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: SizedBox(
+              height: 220,
+              width: double.infinity,
+              child: hasLocation
+                  ? FlutterMap(
+                      options: MapOptions(
+                        initialCenter: elderlyLocation!,
+                        initialZoom: 16,
                       ),
-                    ],
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        width: 6,
-                        height: 6,
-                        decoration: BoxDecoration(
-                          color: badgeColor,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        badgeText,
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                          color: badgeColor,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              Positioned(
-                bottom: 12,
-                left: 12,
-                right: 12,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
-                          children: [
-                            const Icon(Icons.near_me,
-                                size: 12, color: Color(0xFF0D9488)),
-                            const SizedBox(width: 4),
-                            Text(
-                              _elderlyName ?? 'Lansia',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                                color: scheme.onSurface,
+                        TileLayer(
+                          urlTemplate:
+                              'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                          userAgentPackageName: 'com.example.smart_sandal',
+                          tileProvider: NetworkTileProvider(
+                            cachingProvider: DisabledMapCachingProvider(),
+                          ),
+                        ),
+                        MarkerLayer(
+                          markers: [
+                            Marker(
+                              point: elderlyLocation,
+                              width: 50,
+                              height: 50,
+                              child: const Icon(
+                                Icons.location_pin,
+                                color: Colors.red,
+                                size: 48,
                               ),
                             ),
                           ],
                         ),
-                        Text(
-                          hasDevice
-                              ? (hasLocation
-                                  ? 'Lokasi terkini sandal'
-                                  : 'Lokasi belum tersedia')
-                              : 'Sandal belum terhubung',
-                          style: TextStyle(
-                              fontSize: 10, color: scheme.onSurfaceVariant),
-                        ),
                       ],
+                    )
+                  : Container(
+                      color: const Color(0xFFF5F5F5),
+                      child: const Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.location_off,
+                                size: 42, color: Colors.grey),
+                            SizedBox(height: 8),
+                            Text(
+                              'Lokasi belum tersedia',
+                              style:
+                                  TextStyle(color: Colors.grey, fontSize: 13),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
-                    Text(
-                      hasLocation
-                          ? '${coord(lat, 'N', 'S')}\n${coord(lng, 'E', 'W')}'
-                          : 'Belum tersedia',
-                      textAlign: TextAlign.right,
-                      style: TextStyle(
-                          fontSize: 10, color: scheme.onSurfaceVariant),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.person_outline,
+                        size: 18, color: Colors.grey),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        _elderlyName ?? 'Lansia',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: Theme.of(context).colorScheme.onSurface,
+                        ),
+                      ),
                     ),
+                    if (hasLocation)
+                      Text(
+                        '${latitude.toStringAsFixed(6)}, ${longitude.toStringAsFixed(6)}',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey,
+                        ),
+                      ),
                   ],
                 ),
-              ),
-            ],
+                if (hasLocation && lastSeen != null) ...[
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      const Icon(Icons.access_time,
+                          size: 14, color: Colors.grey),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Lokasi terakhir diperbarui ${_formatTimeAgo(lastSeen)}',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 

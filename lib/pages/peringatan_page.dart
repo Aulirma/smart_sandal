@@ -1,9 +1,12 @@
-
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../services/backend_api_service.dart';
+import '../services/firestore_monitoring_service.dart';
 import 'laporan_harian_page.dart';
 
 class PeringatanPage extends StatefulWidget {
@@ -20,9 +23,9 @@ class PeringatanPage extends StatefulWidget {
 
 class _PeringatanPageState extends State<PeringatanPage> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-
-  String? _elderlyId;
-  String? _deviceId;
+  final BackendApiService _api = BackendApiService();
+  final FirestoreMonitoringService _monitoringService =
+      FirestoreMonitoringService.instance;
 
   String _emergencyName = 'Kontak wali belum tersedia';
   String _emergencyPhone = '';
@@ -31,7 +34,7 @@ class _PeringatanPageState extends State<PeringatanPage> {
 
   Stream<QuerySnapshot<Map<String, dynamic>>>? _notificationStream;
   Stream<QuerySnapshot<Map<String, dynamic>>>? _fallEventStream;
-  Stream<QuerySnapshot<Map<String, dynamic>>>? _gpsStream;
+  Stream<Map<String, dynamic>?>? _telemetryStream;
 
   @override
   void initState() {
@@ -47,68 +50,87 @@ class _PeringatanPageState extends State<PeringatanPage> {
         throw Exception('Pengguna belum login.');
       }
 
-      // Cari profil lansia yang terhubung dengan wali yang sedang login.
-      final profileQuery = await _firestore
-          .collection('elderly_profiles')
-          .where('waliIds', arrayContains: user.uid)
-          .limit(1)
-          .get();
+      String? elderlyId;
+      String? deviceId;
+      Map<String, dynamic> profileData = {};
 
-      if (profileQuery.docs.isEmpty) {
+      // 1. Coba ambil melalui BackendApiService (seperti HomePage & PantauPage)
+      try {
+        final apiData = await _api.getMyElderlyProfile();
+        if (apiData['exists'] == true) {
+          elderlyId = apiData['elderlyId']?.toString();
+          deviceId = apiData['deviceId']?.toString();
+          if (apiData['profile'] is Map) {
+            profileData = Map<String, dynamic>.from(apiData['profile']);
+          } else {
+            profileData = Map<String, dynamic>.from(apiData);
+          }
+        }
+      } catch (e) {
+        debugPrint('[PeringatanPage] Gagal ambil profil via API: $e');
+      }
+
+      // 2. Fallback: cari langsung dari Firestore elderly_profiles
+      if (elderlyId == null ||
+          elderlyId.isEmpty ||
+          deviceId == null ||
+          deviceId.isEmpty) {
+        final profileQuery = await _firestore
+            .collection('elderly_profiles')
+            .where('waliIds', arrayContains: user.uid)
+            .limit(1)
+            .get();
+
+        if (profileQuery.docs.isNotEmpty) {
+          final profileDoc = profileQuery.docs.first;
+          profileData = profileDoc.data();
+          elderlyId ??= profileDoc.id;
+          deviceId ??= profileData['deviceId']?.toString();
+        }
+      }
+
+      if (elderlyId == null || elderlyId.isEmpty) {
         throw Exception('Profil lansia tidak ditemukan.');
       }
 
-      final profileDoc = profileQuery.docs.first;
-      final profileData = profileDoc.data();
-
-      final elderlyId = profileDoc.id;
-      final deviceId = profileData['deviceId']?.toString() ?? '';
-
-      if (deviceId.isEmpty) {
+      final cleanDeviceId = (deviceId ?? '').trim();
+      if (cleanDeviceId.isEmpty) {
         throw Exception('Device ID belum tersedia pada profil lansia.');
       }
 
-      // Notifikasi untuk wali yang sedang login.
+      // Notifikasi untuk wali yang sedang login (tanpa orderBy di Firestore agar tidak butuh composite index)
       final notificationStream = _firestore
           .collection('notifications')
           .where('waliId', isEqualTo: user.uid)
-          .orderBy('createdAt', descending: true)
           .snapshots();
 
-      // Riwayat kejadian jatuh milik lansia.
+      // Riwayat kejadian jatuh milik lansia (tanpa orderBy di Firestore agar tidak butuh composite index)
       final fallEventStream = _firestore
           .collection('fall_events')
           .where('elderlyId', isEqualTo: elderlyId)
-          .orderBy('timestamp', descending: true)
-          .limit(20)
           .snapshots();
 
-      // GPS terbaru dari data pembacaan perangkat.
-      final gpsStream = _firestore
-          .collection('device_telemetry')
-          .doc(deviceId)
-          .collection('readings')
-          .orderBy('receivedAt', descending: true)
-          .limit(1)
-          .snapshots();
+      // Telemetry GPS terbaru dari dokumen terkini sandal pintar
+      final telemetryStream =
+          _monitoringService.watchLatestTelemetry(cleanDeviceId);
 
       if (!mounted) return;
 
       setState(() {
-        _elderlyId = elderlyId;
-        _deviceId = deviceId;
         _notificationStream = notificationStream;
         _fallEventStream = fallEventStream;
-        _gpsStream = gpsStream;
+        _telemetryStream = telemetryStream;
         _isLoading = false;
       });
 
       await _loadEmergencyContact(
         profileData: profileData,
         currentUid: user.uid,
+        elderlyId: elderlyId,
       );
     } catch (e) {
-      debugPrint('Gagal menginisialisasi halaman peringatan: $e');
+      debugPrint(
+          '[PeringatanPage] Gagal menginisialisasi halaman peringatan: $e');
 
       if (mounted) {
         setState(() {
@@ -122,26 +144,29 @@ class _PeringatanPageState extends State<PeringatanPage> {
   Future<void> _loadEmergencyContact({
     required Map<String, dynamic> profileData,
     required String currentUid,
+    required String elderlyId,
   }) async {
     try {
-      final waliIds = List<String>.from(
-        profileData['waliIds'] ?? [],
-      );
+      List<String> waliIds = List<String>.from(profileData['waliIds'] ?? []);
+
+      if (waliIds.isEmpty) {
+        final doc =
+            await _firestore.collection('elderly_profiles').doc(elderlyId).get();
+        if (doc.exists) {
+          waliIds = List<String>.from(doc.data()?['waliIds'] ?? []);
+        }
+      }
 
       if (waliIds.isEmpty) return;
 
       // Prioritaskan wali lain selain pengguna yang sedang login.
-      final otherWaliIds = waliIds
-          .where((id) => id != currentUid)
-          .toList();
+      final otherWaliIds = waliIds.where((id) => id != currentUid).toList();
 
       final targetWaliId =
-      otherWaliIds.isNotEmpty ? otherWaliIds.first : waliIds.first;
+          otherWaliIds.isNotEmpty ? otherWaliIds.first : waliIds.first;
 
-      final waliDoc = await _firestore
-          .collection('users')
-          .doc(targetWaliId)
-          .get();
+      final waliDoc =
+          await _firestore.collection('users').doc(targetWaliId).get();
 
       if (!waliDoc.exists) return;
 
@@ -154,7 +179,7 @@ class _PeringatanPageState extends State<PeringatanPage> {
         _emergencyPhone = waliData['phone']?.toString() ?? '';
       });
     } catch (e) {
-      debugPrint('Gagal mengambil kontak darurat: $e');
+      debugPrint('[PeringatanPage] Gagal mengambil kontak darurat: $e');
     }
   }
 
@@ -193,11 +218,11 @@ class _PeringatanPageState extends State<PeringatanPage> {
 
   // Tandai semua notifikasi milik wali sebagai sudah dibaca.
   Future<void> _markAllAsRead(
-      List<QueryDocumentSnapshot<Map<String, dynamic>>> docs,
-      ) async {
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> docs,
+  ) async {
     try {
       final unreadDocs = docs.where(
-            (doc) => doc.data()['read'] != true,
+        (doc) => doc.data()['read'] != true,
       );
 
       final batch = _firestore.batch();
@@ -234,10 +259,18 @@ class _PeringatanPageState extends State<PeringatanPage> {
     );
   }
 
-  String _formatTime(dynamic value) {
-    if (value is! Timestamp) return 'Waktu tidak tersedia';
+  DateTime? _parseDateTime(dynamic value) {
+    if (value == null) return null;
+    if (value is Timestamp) return value.toDate();
+    if (value is DateTime) return value;
+    if (value is String) return DateTime.tryParse(value);
+    return null;
+  }
 
-    final date = value.toDate();
+  String _formatTime(dynamic value) {
+    final date = _parseDateTime(value);
+    if (date == null) return 'Waktu tidak tersedia';
+
     final now = DateTime.now();
     final difference = now.difference(date);
 
@@ -308,7 +341,7 @@ class _PeringatanPageState extends State<PeringatanPage> {
 
     if (_notificationStream == null ||
         _fallEventStream == null ||
-        _gpsStream == null) {
+        _telemetryStream == null) {
       return Scaffold(
         appBar: AppBar(
           leading: IconButton(
@@ -367,43 +400,69 @@ class _PeringatanPageState extends State<PeringatanPage> {
       body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
         stream: _fallEventStream,
         builder: (context, fallSnapshot) {
-          final fallDocs = fallSnapshot.data?.docs ?? [];
+          final rawFallDocs = fallSnapshot.data?.docs ?? [];
+          final fallDocs =
+              List<QueryDocumentSnapshot<Map<String, dynamic>>>.from(rawFallDocs);
+
+          // Urutkan kejadian jatuh terbaru di atas (client-side)
+          fallDocs.sort((a, b) {
+            final ta = _parseDateTime(a.data()['timestamp']);
+            final tb = _parseDateTime(b.data()['timestamp']);
+            if (ta == null && tb == null) return 0;
+            if (ta == null) return 1;
+            if (tb == null) return -1;
+            return tb.compareTo(ta);
+          });
 
           final activeFall = fallDocs.where(
-                (doc) => doc.data()['acknowledged'] != true,
+            (doc) => doc.data()['acknowledged'] != true,
           ).toList();
 
-          final latestFall = fallDocs.isNotEmpty
-              ? fallDocs.first.data()
-              : null;
+          final latestFall =
+              fallDocs.isNotEmpty ? fallDocs.first.data() : null;
 
-          return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-            stream: _gpsStream,
-            builder: (context, gpsSnapshot) {
+          return StreamBuilder<Map<String, dynamic>?>(
+            stream: _telemetryStream,
+            builder: (context, telemetrySnapshot) {
+              final telemetry = telemetrySnapshot.data;
+              final gps = telemetry?['gps'];
               double? latitude;
               double? longitude;
-              dynamic gpsTime;
 
-              if (gpsSnapshot.hasData &&
-                  gpsSnapshot.data!.docs.isNotEmpty) {
-                final gpsData = gpsSnapshot.data!.docs.first.data();
-                final gps = gpsData['gps'];
+              if (gps is Map) {
+                final rawLat = gps['latitude'];
+                final rawLng = gps['longitude'];
+                if (rawLat is num) latitude = rawLat.toDouble();
+                if (rawLng is num) longitude = rawLng.toDouble();
+              }
 
-                if (gps is Map) {
-                  latitude = (gps['latitude'] as num?)?.toDouble();
-                  longitude = (gps['longitude'] as num?)?.toDouble();
+              dynamic gpsTime = telemetry?['lastSeen'];
+
+              // Jika GPS reading belum tersedia di telemetry, gunakan lokasi event jatuh terakhir.
+              if ((latitude == null || longitude == null) && latestFall != null) {
+                if (latestFall['location'] is GeoPoint) {
+                  final location = latestFall['location'] as GeoPoint;
+                  latitude = location.latitude;
+                  longitude = location.longitude;
+                } else if (latestFall['latitude'] is num &&
+                    latestFall['longitude'] is num) {
+                  latitude = (latestFall['latitude'] as num).toDouble();
+                  longitude = (latestFall['longitude'] as num).toDouble();
                 }
-
-                gpsTime = gpsData['receivedAt'];
+                gpsTime ??= latestFall['timestamp'];
               }
 
-              // Jika GPS reading belum tersedia, gunakan lokasi event jatuh.
-              if ((latitude == null || longitude == null) &&
-                  latestFall?['location'] is GeoPoint) {
-                final location = latestFall!['location'] as GeoPoint;
-                latitude = location.latitude;
-                longitude = location.longitude;
-              }
+              final bool hasLocation = latitude != null &&
+                  longitude != null &&
+                  latitude >= -90 &&
+                  latitude <= 90 &&
+                  longitude >= -180 &&
+                  longitude <= 180;
+
+              final DateTime? lastSeen = _parseDateTime(gpsTime);
+              final bool isDeviceOnline = lastSeen != null &&
+                  DateTime.now().difference(lastSeen) <=
+                      const Duration(minutes: 2);
 
               return SingleChildScrollView(
                 padding: const EdgeInsets.all(16),
@@ -412,9 +471,11 @@ class _PeringatanPageState extends State<PeringatanPage> {
                   children: [
                     _buildUrgentCard(
                       hasActiveFall: activeFall.isNotEmpty,
+                      hasLocation: hasLocation,
                       latitude: latitude,
                       longitude: longitude,
                       gpsTime: gpsTime,
+                      isDeviceOnline: isDeviceOnline,
                     ),
                     const SizedBox(height: 24),
                     Text(
@@ -430,20 +491,53 @@ class _PeringatanPageState extends State<PeringatanPage> {
                       stream: _notificationStream,
                       builder: (context, snapshot) {
                         if (snapshot.hasError) {
-                          return const Text(
-                            'Gagal memuat notifikasi.',
+                          debugPrint(
+                              '[PeringatanPage] Gagal memuat notifikasi: ${snapshot.error}');
+                          return Center(
+                            child: Padding(
+                              padding: const EdgeInsets.all(24),
+                              child: Column(
+                                children: [
+                                  Icon(Icons.error_outline,
+                                      color: Colors.red.shade400, size: 36),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    'Gagal memuat notifikasi.',
+                                    style: TextStyle(
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .onSurfaceVariant,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
                           );
                         }
 
                         if (snapshot.connectionState ==
-                            ConnectionState.waiting &&
+                                ConnectionState.waiting &&
                             !snapshot.hasData) {
                           return const Center(
                             child: CircularProgressIndicator(),
                           );
                         }
 
-                        final docs = snapshot.data?.docs ?? [];
+                        final rawDocs = snapshot.data?.docs ?? [];
+                        final docs =
+                            List<QueryDocumentSnapshot<Map<String, dynamic>>>.from(
+                          rawDocs,
+                        );
+
+                        // Urutkan notifikasi terbaru di atas (client-side)
+                        docs.sort((a, b) {
+                          final ta = _parseDateTime(a.data()['createdAt']);
+                          final tb = _parseDateTime(b.data()['createdAt']);
+                          if (ta == null && tb == null) return 0;
+                          if (ta == null) return 1;
+                          if (tb == null) return -1;
+                          return tb.compareTo(ta);
+                        });
 
                         if (docs.isEmpty) {
                           return const Center(
@@ -481,12 +575,12 @@ class _PeringatanPageState extends State<PeringatanPage> {
 
   Widget _buildUrgentCard({
     required bool hasActiveFall,
+    required bool hasLocation,
     required double? latitude,
     required double? longitude,
     required dynamic gpsTime,
+    required bool isDeviceOnline,
   }) {
-    final hasLocation = latitude != null && longitude != null;
-
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
@@ -556,34 +650,107 @@ class _PeringatanPageState extends State<PeringatanPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Lokasi GPS Terakhir',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                  ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Lokasi GPS Terakhir',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: isDeviceOnline && hasLocation
+                            ? const Color(0xFFE8F5E9)
+                            : const Color(0xFFFFEBEE),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        isDeviceOnline && hasLocation
+                            ? 'GPS AKTIF'
+                            : 'GPS OFFLINE',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: isDeviceOnline && hasLocation
+                              ? Colors.green.shade700
+                              : Colors.red.shade700,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 12),
-                Container(
-                  height: 110,
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    color: Colors.grey.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Center(
-                    child: Icon(
-                      Icons.location_on,
-                      color: Colors.green,
-                      size: 42,
-                    ),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: SizedBox(
+                    height: 180,
+                    width: double.infinity,
+                    child: hasLocation
+                        ? FlutterMap(
+                            options: MapOptions(
+                              initialCenter: LatLng(latitude!, longitude!),
+                              initialZoom: 16,
+                            ),
+                            children: [
+                              TileLayer(
+                                urlTemplate:
+                                    'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                                userAgentPackageName:
+                                    'com.example.smart_sandal',
+                                tileProvider: NetworkTileProvider(
+                                  cachingProvider:
+                                      DisabledMapCachingProvider(),
+                                ),
+                              ),
+                              MarkerLayer(
+                                markers: [
+                                  Marker(
+                                    point: LatLng(latitude, longitude),
+                                    width: 50,
+                                    height: 50,
+                                    child: const Icon(
+                                      Icons.location_pin,
+                                      color: Colors.red,
+                                      size: 48,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          )
+                        : Container(
+                            color: const Color(0xFFF5F5F5),
+                            child: const Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.location_off,
+                                      size: 38, color: Colors.grey),
+                                  SizedBox(height: 6),
+                                  Text(
+                                    'Lokasi GPS belum tersedia.',
+                                    style: TextStyle(
+                                      color: Colors.grey,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
                   ),
                 ),
                 const SizedBox(height: 8),
                 Text(
                   hasLocation
-                      ? '${latitude.toStringAsFixed(6)}, '
-                      '${longitude.toStringAsFixed(6)}'
+                      ? '${latitude!.toStringAsFixed(6)}, ${longitude!.toStringAsFixed(6)}'
                       : 'Lokasi GPS belum tersedia.',
                   style: const TextStyle(fontSize: 12),
                 ),
@@ -596,10 +763,17 @@ class _PeringatanPageState extends State<PeringatanPage> {
                   ),
                 ),
                 if (hasLocation)
-                  TextButton.icon(
-                    onPressed: () => _openMap(latitude, longitude),
-                    icon: const Icon(Icons.map_outlined),
-                    label: const Text('Buka di Google Maps'),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: TextButton.icon(
+                      onPressed: () => _openMap(latitude!, longitude!),
+                      icon: const Icon(Icons.map_outlined),
+                      label: const Text('Buka di Google Maps'),
+                      style: TextButton.styleFrom(
+                        padding: EdgeInsets.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                    ),
                   ),
               ],
             ),
@@ -623,7 +797,7 @@ class _PeringatanPageState extends State<PeringatanPage> {
             height: 48,
             child: ElevatedButton.icon(
               onPressed:
-              _emergencyPhone.isEmpty ? null : _makeEmergencyCall,
+                  _emergencyPhone.isEmpty ? null : _makeEmergencyCall,
               icon: const Icon(Icons.call, color: Colors.white),
               label: const Text(
                 'Hubungi Kontak Darurat',
@@ -646,9 +820,9 @@ class _PeringatanPageState extends State<PeringatanPage> {
   }
 
   Widget _buildNotificationItem(
-      String notificationId,
-      Map<String, dynamic> data,
-      ) {
+    String notificationId,
+    Map<String, dynamic> data,
+  ) {
     final isRead = data['read'] == true;
     final color = _notificationColor(data);
 
@@ -684,8 +858,8 @@ class _PeringatanPageState extends State<PeringatanPage> {
             color: isRead
                 ? Theme.of(context).cardColor
                 : (Theme.of(context).brightness == Brightness.dark
-                ? const Color(0xFF1E3A47)
-                : const Color(0xFFF0F9FF)),
+                    ? const Color(0xFF1E3A47)
+                    : const Color(0xFFF0F9FF)),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
               color: Theme.of(context).dividerColor,
@@ -719,9 +893,7 @@ class _PeringatanPageState extends State<PeringatanPage> {
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
                               fontSize: 15,
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .onSurface,
+                              color: Theme.of(context).colorScheme.onSurface,
                             ),
                           ),
                         ),
@@ -743,9 +915,7 @@ class _PeringatanPageState extends State<PeringatanPage> {
                       message,
                       style: TextStyle(
                         fontSize: 13,
-                        color: Theme.of(context)
-                            .colorScheme
-                            .onSurfaceVariant,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
                     ),
                     const SizedBox(height: 6),
@@ -753,9 +923,7 @@ class _PeringatanPageState extends State<PeringatanPage> {
                       time,
                       style: TextStyle(
                         fontSize: 11,
-                        color: Theme.of(context)
-                            .colorScheme
-                            .onSurfaceVariant,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
                     ),
                     const SizedBox(height: 4),

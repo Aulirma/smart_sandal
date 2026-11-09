@@ -159,6 +159,37 @@ class _HomePageState extends State<HomePage> {
     return DateTime.now().difference(lastSeen) <= _deviceOfflineThreshold;
   }
 
+  Map<String, dynamic>? get _tinyml {
+    final t = _latestTelemetry?['tinyml'];
+    return t is Map ? Map<String, dynamic>.from(t) : null;
+  }
+
+  bool get _isFall {
+    final activity = _getTinyMLActivity(_latestTelemetry);
+    return _isFallActivity(activity);
+  }
+
+  /// 0 = Normal, 1 = Tidak Stabil, 2 = Risiko Jatuh, null = tidak ada data.
+  int? get _stateIndex {
+    if (!_isDeviceConnected || _tinyml == null) return null;
+
+    if (_isFall) return 2;
+
+    final fallRisk = _tinyml?['fallRisk'];
+    if (fallRisk is num && fallRisk >= 0.5) return 2;
+    if (fallRisk is String && fallRisk.toLowerCase().contains('tinggi')) {
+      return 2;
+    }
+
+    final stability = _tinyml?['stability']?.toString().toLowerCase();
+    if (stability != null &&
+        (stability.contains('tidak') || stability.contains('unstable'))) {
+      return 1;
+    }
+
+    return 0;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -182,7 +213,7 @@ class _HomePageState extends State<HomePage> {
 
       if (!mounted) return;
 
-      if (data != null && data is Map && data['exists'] == true) {
+      if (data['exists'] == true) {
         final elderlyId = data['elderlyId']?.toString();
 
         setState(() {
@@ -517,17 +548,64 @@ class _HomePageState extends State<HomePage> {
 
   Widget _buildElderlyInfo(BuildContext context) {
     final lastSeen = _parseLastSeen(_latestTelemetry?['lastSeen']);
-    final tinyml = _latestTelemetry?['tinyml'];
 
+    final stateIndex = _stateIndex;
     String stabilityText = 'Belum tersedia';
     String fallRiskText = 'Belum tersedia';
+    Color stabilityColor = const Color(0xFF0D9488);
+    Color fallRiskColor = const Color(0xFF0D9488);
 
-    if (tinyml is Map) {
-      if (tinyml['stability'] != null) {
-        stabilityText = tinyml['stability'].toString();
+    if (stateIndex != null) {
+      switch (stateIndex) {
+        case 0:
+          stabilityText = 'Normal';
+          stabilityColor = const Color(0xFF0D9488);
+
+          final rawFallRisk = _tinyml?['fallRisk'];
+          if (rawFallRisk is num) {
+            fallRiskText = 'Rendah';
+          } else if (rawFallRisk is String && rawFallRisk.trim().isNotEmpty) {
+            final text = rawFallRisk.trim();
+            fallRiskText = text[0].toUpperCase() + text.substring(1);
+          } else {
+            fallRiskText = 'Rendah';
+          }
+          fallRiskColor = const Color(0xFF0D9488);
+          break;
+
+        case 1:
+          stabilityText = 'Tidak Stabil';
+          stabilityColor = const Color(0xFFF59E0B);
+
+          final rawFallRisk = _tinyml?['fallRisk'];
+          if (rawFallRisk is num) {
+            fallRiskText = 'Sedang';
+          } else if (rawFallRisk is String && rawFallRisk.trim().isNotEmpty) {
+            final text = rawFallRisk.trim();
+            fallRiskText = text[0].toUpperCase() + text.substring(1);
+          } else {
+            fallRiskText = 'Sedang';
+          }
+          fallRiskColor = const Color(0xFFF59E0B);
+          break;
+
+        case 2:
+          stabilityText = 'Risiko Jatuh';
+          stabilityColor = const Color(0xFFDC2626);
+
+          fallRiskText = 'Beresiko Jatuh';
+          fallRiskColor = const Color(0xFFDC2626);
+          break;
       }
-      if (tinyml['fallRisk'] != null) {
-        fallRiskText = tinyml['fallRisk'].toString();
+    } else {
+      final tinyml = _tinyml;
+      if (tinyml != null) {
+        if (tinyml['stability'] != null) {
+          stabilityText = tinyml['stability'].toString();
+        }
+        if (tinyml['fallRisk'] != null) {
+          fallRiskText = tinyml['fallRisk'].toString();
+        }
       }
     }
 
@@ -590,14 +668,14 @@ class _HomePageState extends State<HomePage> {
               icon: Icons.directions_walk,
               label: 'Stabilitas Langkah',
               value: stabilityText,
-              color: const Color(0xFF0D9488),
+              color: stabilityColor,
             ),
             const SizedBox(width: 12),
             _buildStatusSubCard(
               icon: Icons.warning_amber_rounded,
               label: 'Risiko Jatuh',
               value: fallRiskText,
-              color: const Color(0xFF0D9488),
+              color: fallRiskColor,
             ),
           ],
         ),
@@ -805,7 +883,7 @@ class _HomePageState extends State<HomePage> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
