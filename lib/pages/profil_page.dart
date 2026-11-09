@@ -538,8 +538,8 @@ class _ProfilPageState extends State<ProfilPage> {
   // DEVICE PAIRING
   // ============================================================
 
-  Future<String?> _showDeviceIdDialog() async {
-    final controller = TextEditingController();
+  Future<String?> _showDeviceIdDialog({String? initialDeviceId}) async {
+    final controller = TextEditingController(text: initialDeviceId ?? '');
 
     final result = await showDialog<String>(
       context: context,
@@ -623,20 +623,19 @@ class _ProfilPageState extends State<ProfilPage> {
     return result;
   }
 
-  Future<void> _generatePairingCode() async {
+  Future<void> _generatePairingCode({String? customDeviceId}) async {
     if (!_hasData) {
       _showMessage('Buat profil lansia terlebih dahulu.');
       return;
     }
 
-    if (_isDeviceConnected) {
-      _showMessage('Perangkat lansia sudah terhubung.');
-      return;
+    String? deviceId = customDeviceId ?? _deviceId;
+
+    if (deviceId == null || deviceId.trim().isEmpty) {
+      deviceId = await _showDeviceIdDialog();
+      if (deviceId == null || deviceId.trim().isEmpty) return;
     }
 
-    final deviceId = await _showDeviceIdDialog();
-
-    if (deviceId == null || deviceId.isEmpty) return;
     if (!mounted) return;
 
     showDialog(
@@ -649,7 +648,7 @@ class _ProfilPageState extends State<ProfilPage> {
 
     try {
       final result = await _api.generateDevicePairing(
-        deviceId: deviceId,
+        deviceId: deviceId.trim(),
       );
 
       if (!mounted) return;
@@ -1041,8 +1040,7 @@ class _ProfilPageState extends State<ProfilPage> {
                 width: double.infinity,
                 height: 52,
                 child: ElevatedButton(
-                  onPressed:
-                  _isDeviceConnected ? null : _generatePairingCode,
+                  onPressed: _hasData ? () => _generatePairingCode() : null,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF0D8B94),
                     disabledBackgroundColor: Colors.grey,
@@ -1052,8 +1050,8 @@ class _ProfilPageState extends State<ProfilPage> {
                   ),
                   child: Text(
                     _isDeviceConnected
-                        ? 'Perangkat Sudah Terhubung'
-                        : 'Kelola Perangkat',
+                        ? 'Generate Kode Login Lansia'
+                        : 'Kelola / Hubungkan Perangkat',
                     style: const TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.bold,
@@ -1188,46 +1186,172 @@ class _ProfilPageState extends State<ProfilPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildSectionHeader(
-            Icons.bluetooth_connected,
-            'Perangkat Terhubung',
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _buildSectionHeader(
+                Icons.bluetooth_connected,
+                'Perangkat Terhubung',
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 5,
+                ),
+                decoration: BoxDecoration(
+                  color: _isActualDeviceConnected
+                      ? const Color(0xFFE8F5E9)
+                      : const Color(0xFFFFEBEE),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 6,
+                      height: 6,
+                      decoration: BoxDecoration(
+                        color: _isActualDeviceConnected
+                            ? Colors.green
+                            : Colors.red,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      _isActualDeviceConnected ? 'TERHUBUNG' : 'TIDAK TERHUBUNG',
+                      style: TextStyle(
+                        color: _isActualDeviceConnected
+                            ? Colors.green.shade700
+                            : Colors.red.shade700,
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
 
           const SizedBox(height: 14),
 
-          Row(
-            children: [
-              Container(
-                width: 8,
-                height: 8,
-                decoration: BoxDecoration(
-                  color: _isActualDeviceConnected ? Colors.green : Colors.red,
-                  shape: BoxShape.circle,
-                ),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              border: Border.all(
+                color: Theme.of(context).dividerColor,
               ),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF0D8B94).withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(
+                        Icons.device_hub,
+                        color: Color(0xFF0D8B94),
+                        size: 24,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'EMERYS Sandal Pintar',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: Theme.of(context).colorScheme.onSurface,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Device ID: ${_deviceId ?? '-'}',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () async {
+                        final newId = await _showDeviceIdDialog(
+                          initialDeviceId: _deviceId,
+                        );
+                        if (newId != null && newId.trim().isNotEmpty) {
+                          _generatePairingCode(customDeviceId: newId.trim());
+                        }
+                      },
+                      style: TextButton.styleFrom(
+                        padding: EdgeInsets.zero,
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      child: const Text(
+                        'Ganti ID',
+                        style: TextStyle(
+                          color: Color(0xFF0D8B94),
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
 
-              const SizedBox(width: 12),
+                const SizedBox(height: 16),
+                const Divider(height: 1),
+                const SizedBox(height: 12),
 
-              Expanded(
-                child: Text(
-                  'EMERYS Sandal Pintar',
+                Text(
+                  'Jika HP lansia logout atau terputus, buat kode login baru agar akun lansia dapat login kembali.',
                   style: TextStyle(
-                    fontSize: 13,
-                    color: Theme.of(context).colorScheme.onSurface,
-                    fontWeight: FontWeight.w500,
+                    fontSize: 12,
+                    height: 1.4,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
                 ),
-              ),
 
-              Text(
-                _isActualDeviceConnected ? 'Terhubung' : 'Tidak Terhubung',
-                style: TextStyle(
-                  color: _isActualDeviceConnected ? Colors.green : Colors.red,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 13,
+                const SizedBox(height: 12),
+
+                SizedBox(
+                  width: double.infinity,
+                  height: 44,
+                  child: OutlinedButton.icon(
+                    onPressed: () => _generatePairingCode(),
+                    icon: const Icon(Icons.key, size: 18),
+                    label: const Text(
+                      'Generate Kode Setup Lansia',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFF0D8B94),
+                      side: const BorderSide(
+                        color: Color(0xFF0D8B94),
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ],
       ),
