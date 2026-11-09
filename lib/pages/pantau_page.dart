@@ -180,19 +180,51 @@ class _PantauPageState extends State<PantauPage> {
 
   /// 0 = Normal, 1 = Tidak Stabil, 2 = Risiko Jatuh, null = tidak ada data.
   int? get _stateIndex {
-    if (!_isConnected || _tinyml == null) return null;
+    if (_telemetry == null) return null;
 
-    if (_isFall) return 2;
+    final tinyml = _tinyml;
+    final activity = (_activity ??
+            _telemetry?['activity'] ??
+            _telemetry?['kondisi'])
+        ?.toString()
+        .trim()
+        .toLowerCase();
 
-    final fallRisk = _tinyml?['fallRisk'];
+    // 1. Cek apakah ada indikasi jatuh
+    final isFall = activity != null &&
+        (activity.contains('jatuh') ||
+            activity.contains('fall') ||
+            _isFall);
+    if (isFall) return 2;
+
+    // 2. Cek fallRisk
+    final fallRisk = tinyml?['fallRisk'] ?? _telemetry?['fallRisk'];
     if (fallRisk is num && fallRisk >= 0.5) return 2;
-    if (fallRisk is String && fallRisk.toLowerCase().contains('tinggi')) {
+    if (fallRisk is String &&
+        (fallRisk.toLowerCase().contains('tinggi') ||
+            fallRisk.toLowerCase().contains('high') ||
+            fallRisk.toLowerCase().contains('sangat'))) {
       return 2;
     }
 
-    final stability = _tinyml?['stability']?.toString().toLowerCase();
+    // 3. Cek stabilitas langkah / aktivitas tidak stabil
+    final stability = (tinyml?['stability'] ?? _telemetry?['stability'])
+        ?.toString()
+        .toLowerCase();
     if (stability != null &&
         (stability.contains('tidak') || stability.contains('unstable'))) {
+      return 1;
+    }
+    if (activity != null &&
+        (activity.contains('tidak') ||
+            activity.contains('unstable') ||
+            activity.contains('goyang') ||
+            activity.contains('sempoyongan'))) {
+      return 1;
+    }
+    if (fallRisk is String &&
+        (fallRisk.toLowerCase().contains('sedang') ||
+            fallRisk.toLowerCase().contains('medium'))) {
       return 1;
     }
 
@@ -201,22 +233,21 @@ class _PantauPageState extends State<PantauPage> {
 
   String get _statusTitle {
     if (_deviceId == null) return 'Belum terhubung';
-    if (!_isConnected) return 'Perangkat offline';
-    final activity = _activity;
-    if (activity == null || activity.isEmpty) return 'Menunggu data';
+    final stateIndex = _stateIndex;
+    if (stateIndex == null) return 'Menunggu data';
 
-    switch (activity) {
-      case 'jalan':
-        return 'Berjalan';
-      case 'diam':
-        return 'Diam';
-      case 'jatuh_debel':
-        return 'Jatuh (keras)';
-      case 'jatuh_samping':
-        return 'Jatuh (samping)';
+    switch (stateIndex) {
+      case 0:
+        final act = _activity;
+        if (act == 'jalan') return 'Berjalan';
+        if (act == 'diam') return 'Diam';
+        return 'Normal';
+      case 1:
+        return 'Tidak Stabil';
+      case 2:
+        return 'Risiko Jatuh';
       default:
-        final spaced = activity.replaceAll('_', ' ');
-        return spaced[0].toUpperCase() + spaced.substring(1);
+        return 'Menunggu data';
     }
   }
 
@@ -402,11 +433,26 @@ class _PantauPageState extends State<PantauPage> {
           const SizedBox(height: 16),
           Row(
             children: [
-              _buildPillButton(context, 'Normal', _stateIndex == 0),
+              _buildPillButton(
+                context,
+                'Normal',
+                _stateIndex == 0,
+                activeColor: const Color(0xFF0D9488),
+              ),
               const SizedBox(width: 8),
-              _buildPillButton(context, 'Tidak Stabil', _stateIndex == 1),
+              _buildPillButton(
+                context,
+                'Tidak Stabil',
+                _stateIndex == 1,
+                activeColor: const Color(0xFFF59E0B),
+              ),
               const SizedBox(width: 8),
-              _buildPillButton(context, 'Risiko Jatuh', _stateIndex == 2),
+              _buildPillButton(
+                context,
+                'Risiko Jatuh',
+                _stateIndex == 2,
+                activeColor: const Color(0xFFDC2626),
+              ),
             ],
           ),
         ],
@@ -414,18 +460,23 @@ class _PantauPageState extends State<PantauPage> {
     );
   }
 
-  Widget _buildPillButton(BuildContext context, String label, bool isActive) {
+  Widget _buildPillButton(
+    BuildContext context,
+    String label,
+    bool isActive, {
+    Color activeColor = AppTheme.primaryColor,
+  }) {
     return Expanded(
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 8),
         decoration: BoxDecoration(
           color: isActive
-              ? AppTheme.primaryColor.withValues(alpha: 0.15)
+              ? activeColor.withValues(alpha: 0.15)
               : Colors.transparent,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
             color: isActive
-                ? AppTheme.primaryColor
+                ? activeColor
                 : Theme.of(context).dividerColor,
           ),
         ),
@@ -434,7 +485,7 @@ class _PantauPageState extends State<PantauPage> {
           textAlign: TextAlign.center,
           style: TextStyle(
             color: isActive
-                ? AppTheme.primaryColor
+                ? activeColor
                 : Theme.of(context).colorScheme.onSurfaceVariant,
             fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
             fontSize: 12,

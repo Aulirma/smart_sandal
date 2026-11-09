@@ -5,6 +5,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import '../services/backend_api_service.dart';
+import '../services/emerys_ble_service.dart';
+import '../services/firestore_monitoring_service.dart';
 
 class ProfilPage extends StatefulWidget {
   final VoidCallback onBackPressed;
@@ -28,12 +30,16 @@ class _ProfilPageState extends State<ProfilPage> {
   String? _deviceId;
 
   Map<String, dynamic>? _waliData;
+  Map<String, dynamic>? _latestTelemetry;
 
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>?
   _profileSubscription;
 
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>?
   _waliSubscription;
+
+  StreamSubscription? _bleSubscription;
+  StreamSubscription? _telemetrySubscription;
 
   final _namaController = TextEditingController();
   final _usiaController = TextEditingController();
@@ -42,14 +48,36 @@ class _ProfilPageState extends State<ProfilPage> {
   bool get _isDeviceConnected =>
       _deviceId != null && _deviceId!.isNotEmpty;
 
+  bool get _isActualDeviceConnected {
+    if (_deviceId == null || _deviceId!.isEmpty) return false;
+    // 1. Cek koneksi Bluetooth BLE secara langsung pada perangkat
+    if (EmerysBleService.instance.isConnected) return true;
+    // 2. Cek apakah ada paket telemetri aktif dari sandal pintar (maksimal 2 menit)
+    final lastSeen = _latestTelemetry?['lastSeen'];
+    DateTime? dt;
+    if (lastSeen is Timestamp) dt = lastSeen.toDate();
+    if (lastSeen is DateTime) dt = lastSeen;
+    if (lastSeen is String) dt = DateTime.tryParse(lastSeen);
+    if (dt != null &&
+        DateTime.now().difference(dt) <= const Duration(minutes: 2)) {
+      return true;
+    }
+    return false;
+  }
+
   @override
   void initState() {
     super.initState();
+    _bleSubscription = EmerysBleService.instance.statusStream.listen((_) {
+      if (mounted) setState(() {});
+    });
     _loadProfile();
   }
 
   @override
   void dispose() {
+    _bleSubscription?.cancel();
+    _telemetrySubscription?.cancel();
     _profileSubscription?.cancel();
     _waliSubscription?.cancel();
 
@@ -118,6 +146,23 @@ class _ProfilPageState extends State<ProfilPage> {
   // LISTENER PROFIL LANSIA
   // ============================================================
 
+  void _listenToTelemetry(String? deviceId) {
+    _telemetrySubscription?.cancel();
+    _telemetrySubscription = null;
+
+    final clean = deviceId?.trim();
+    if (clean == null || clean.isEmpty) {
+      if (mounted) setState(() => _latestTelemetry = null);
+      return;
+    }
+
+    _telemetrySubscription = FirestoreMonitoringService.instance
+        .watchLatestTelemetry(clean)
+        .listen((data) {
+      if (mounted) setState(() => _latestTelemetry = data);
+    });
+  }
+
   void _listenToElderlyProfile(String elderlyId) {
     _profileSubscription?.cancel();
 
@@ -131,6 +176,8 @@ class _ProfilPageState extends State<ProfilPage> {
           (snapshot) {
         if (!snapshot.exists) {
           if (!mounted) return;
+
+          _listenToTelemetry(null);
 
           setState(() {
             _hasData = false;
@@ -150,6 +197,8 @@ class _ProfilPageState extends State<ProfilPage> {
         final deviceId = data['deviceId']?.toString();
         final waliIds = List<dynamic>.from(data['waliIds'] ?? []);
 
+        final deviceChanged = _deviceId != deviceId;
+
         setState(() {
           _hasData = true;
           _elderlyId = snapshot.id;
@@ -160,6 +209,10 @@ class _ProfilPageState extends State<ProfilPage> {
           _catatanController.text =
               data['healthNote']?.toString() ?? '';
         });
+
+        if (deviceChanged || _telemetrySubscription == null) {
+          _listenToTelemetry(deviceId);
+        }
 
         _listenToWali(waliIds);
       },
@@ -1147,8 +1200,8 @@ class _ProfilPageState extends State<ProfilPage> {
               Container(
                 width: 8,
                 height: 8,
-                decoration: const BoxDecoration(
-                  color: Colors.green,
+                decoration: BoxDecoration(
+                  color: _isActualDeviceConnected ? Colors.green : Colors.red,
                   shape: BoxShape.circle,
                 ),
               ),
@@ -1166,10 +1219,10 @@ class _ProfilPageState extends State<ProfilPage> {
                 ),
               ),
 
-              const Text(
-                'Terhubung',
+              Text(
+                _isActualDeviceConnected ? 'Terhubung' : 'Tidak Terhubung',
                 style: TextStyle(
-                  color: Colors.green,
+                  color: _isActualDeviceConnected ? Colors.green : Colors.red,
                   fontWeight: FontWeight.bold,
                   fontSize: 13,
                 ),

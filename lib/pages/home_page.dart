@@ -171,19 +171,50 @@ class _HomePageState extends State<HomePage> {
 
   /// 0 = Normal, 1 = Tidak Stabil, 2 = Risiko Jatuh, null = tidak ada data.
   int? get _stateIndex {
-    if (!_isDeviceConnected || _tinyml == null) return null;
+    if (_latestTelemetry == null) return null;
 
-    if (_isFall) return 2;
+    final tinyml = _tinyml;
+    final activity = (_getTinyMLActivity(_latestTelemetry) ??
+            _latestTelemetry?['activity'] ??
+            _latestTelemetry?['kondisi'])
+        ?.toString()
+        .trim()
+        .toLowerCase();
 
-    final fallRisk = _tinyml?['fallRisk'];
+    // 1. Cek apakah ada indikasi jatuh
+    final isFall = _isFall ||
+        (activity != null &&
+            (activity.contains('jatuh') || activity.contains('fall')));
+    if (isFall) return 2;
+
+    // 2. Cek fallRisk
+    final fallRisk = tinyml?['fallRisk'] ?? _latestTelemetry?['fallRisk'];
     if (fallRisk is num && fallRisk >= 0.5) return 2;
-    if (fallRisk is String && fallRisk.toLowerCase().contains('tinggi')) {
+    if (fallRisk is String &&
+        (fallRisk.toLowerCase().contains('tinggi') ||
+            fallRisk.toLowerCase().contains('high') ||
+            fallRisk.toLowerCase().contains('sangat'))) {
       return 2;
     }
 
-    final stability = _tinyml?['stability']?.toString().toLowerCase();
+    // 3. Cek stabilitas langkah / aktivitas tidak stabil
+    final stability = (tinyml?['stability'] ?? _latestTelemetry?['stability'])
+        ?.toString()
+        .toLowerCase();
     if (stability != null &&
         (stability.contains('tidak') || stability.contains('unstable'))) {
+      return 1;
+    }
+    if (activity != null &&
+        (activity.contains('tidak') ||
+            activity.contains('unstable') ||
+            activity.contains('goyang') ||
+            activity.contains('sempoyongan'))) {
+      return 1;
+    }
+    if (fallRisk is String &&
+        (fallRisk.toLowerCase().contains('sedang') ||
+            fallRisk.toLowerCase().contains('medium'))) {
       return 1;
     }
 
@@ -559,41 +590,22 @@ class _HomePageState extends State<HomePage> {
       switch (stateIndex) {
         case 0:
           stabilityText = 'Normal';
+          fallRiskText = 'Rendah';
           stabilityColor = const Color(0xFF0D9488);
-
-          final rawFallRisk = _tinyml?['fallRisk'];
-          if (rawFallRisk is num) {
-            fallRiskText = 'Rendah';
-          } else if (rawFallRisk is String && rawFallRisk.trim().isNotEmpty) {
-            final text = rawFallRisk.trim();
-            fallRiskText = text[0].toUpperCase() + text.substring(1);
-          } else {
-            fallRiskText = 'Rendah';
-          }
           fallRiskColor = const Color(0xFF0D9488);
           break;
 
         case 1:
           stabilityText = 'Tidak Stabil';
+          fallRiskText = 'Tinggi';
           stabilityColor = const Color(0xFFF59E0B);
-
-          final rawFallRisk = _tinyml?['fallRisk'];
-          if (rawFallRisk is num) {
-            fallRiskText = 'Sedang';
-          } else if (rawFallRisk is String && rawFallRisk.trim().isNotEmpty) {
-            final text = rawFallRisk.trim();
-            fallRiskText = text[0].toUpperCase() + text.substring(1);
-          } else {
-            fallRiskText = 'Sedang';
-          }
           fallRiskColor = const Color(0xFFF59E0B);
           break;
 
         case 2:
           stabilityText = 'Risiko Jatuh';
+          fallRiskText = 'Sangat Tinggi';
           stabilityColor = const Color(0xFFDC2626);
-
-          fallRiskText = 'Beresiko Jatuh';
           fallRiskColor = const Color(0xFFDC2626);
           break;
       }
@@ -743,9 +755,7 @@ class _HomePageState extends State<HomePage> {
     if (_deviceId == null || _deviceId!.isEmpty) return 'Belum Terhubung';
     final lastSeen = _parseLastSeen(_latestTelemetry?['lastSeen']);
     if (lastSeen == null) return 'Menunggu Data';
-    return DateTime.now().difference(lastSeen) <= _deviceOfflineThreshold
-        ? 'Aktif'
-        : 'Offline';
+    return _isDeviceConnected ? 'Aktif' : 'Offline';
   }
 
   Widget _buildDeviceStatusBadge(BuildContext context) {
